@@ -1,57 +1,183 @@
 # Network Management Suite
 
-A complete web application for documenting, administering, and monitoring small-to-medium office network infrastructure — physical cabling, patch panels, wall outlets, IP/VLAN assignment, and live device availability.
+**Document · Administer · Monitor** — a complete, self-hosted web platform that turns scattered, manual records of an office computer network into one live, searchable system.
 
-Built as a real-world problem-solving project based on the network operations of a zonal government office (Wolayita Zone Innovation and Technology office), it replaces manual, spreadsheet-based record keeping with a single integrated dashboard.
+> Built as a real-world problem-solving project from a 9-week networking internship at the **Wolayita Zone Innovation and Technology office** (South Ethiopia Region). It replaces spreadsheet-based cable logs, hand-written IP records, and "who plugged in what" guessing with a single integrated dashboard.
 
-![Stack](https://img.shields.io/badge/Node.js-Express%205-339933) ![DB](https://img.shields.io/badge/SQLite-better--sqlite3-blue) ![Frontend](https://img.shields.io/badge/Frontend-Vanilla%20JS-orange)
+![Stack](https://img.shields.io/badge/Node.js-Express%205-339933) ![DB](https://img.shields.io/badge/SQLite-better--sqlite3-blue) ![Frontend](https://img.shields.io/badge/Frontend-Vanilla%20JS-orange) ![Status](https://img.shields.io/badge/status-stable-brightgreen)
 
 ---
 
 ## Table of Contents
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Running the application](#running-the-application)
-  - [Resetting the database](#resetting-the-database)
-- [Project Structure](#project-structure)
-- [API Reference](#api-reference)
-- [Monitoring](#monitoring)
-- [Screenshots / Demo Data](#screenshots--demo-data)
-- [Ideas for Extensions](#ideas-for-extensions)
-- [License](#license)
+1. [What this project is](#what-this-project-is)
+2. [The problem it solves](#the-problem-it-solves)
+3. [What the platform does](#what-the-platform-does)
+4. [Who it is for](#who-it-is-for)
+5. [Modules in depth](#modules-in-depth)
+6. [A real-world walkthrough](#a-real-world-walkthrough)
+7. [Features](#features)
+8. [Architecture](#architecture)
+9. [How data is modelled (database schema)](#how-data-is-modelled-database-schema)
+10. [Tech Stack](#tech-stack)
+11. [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Running the application](#running-the-application)
+    - [Resetting the database](#resetting-the-database)
+    - [Testing](#testing)
+12. [Project Structure](#project-structure)
+13. [API Reference](#api-reference)
+14. [Monitoring explained](#monitoring-explained)
+15. [Demo data](#demo-data)
+16. [Ideas for Extensions](#ideas-for-extensions)
+17. [License](#license)
+
+---
+
+## What this project is
+
+The **Network Management Suite** is a lightweight, self-hosted web application that keeps **three kinds of network knowledge in one place**:
+
+| # | Knowledge | What it records |
+|---|-----------|-----------------|
+| 1 | **Physical** | The *cabling plant*: rooms, wall outlets, patch panels, and every cable run between an outlet and a patch-panel port. |
+| 2 | **Logical** | The *design*: VLANs (which department lives on which segmented network), and every device with its IP address, VLAN, MAC, and location. |
+| 3 | **Live** | The *health*: whether each device answers a ping right now, how fast it responds (RTT), and a history of its availability over time. |
+
+It is a full-stack application you run on a single machine:
+
+- **Backend** — Node.js + Express exposing a JSON REST API, backed by a **SQLite** file database (zero external dependencies, one small file).
+- **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with four tabs: **Dashboard**, **Infrastructure**, **IP & VLAN**, and **Monitoring**.
+
+---
+
+## The problem it solves
+
+During the internship, the everyday reality of managing a real office network became obvious — and it is rarely elegant:
+
+### 1. Cable records lived in a spreadsheet (or nowhere)
+Every wall outlet, patch-panel port, and cable run had to be documented by hand. The cable log was a mix of paper notes, Excel rows, and tribal knowledge ("the yellow cable in port 4 goes to… I think"). When a cable failed, re-tracing it meant crawling under desks.
+
+### 2. Nobody could see the whole network at a glance
+Rooms, switches, VLANs, and devices were documented in different files, in different formats, maintained by different people. Seeing "which VLAN does the ICT office live on?" or "what is that IP address used for?" required digging through multiple documents.
+
+### 3. IP address management was guesswork
+An IP address conflict is a classic office headache. Without a **device/IP inventory**, assigning an address is a gamble — and troubleshooting "two devices fighting over 192.168.10.50" is slow and frustrating.
+
+### 4. There was no visibility into device health
+When "the internet is down", the first question is *"is it the ISP, the router, the switch, or the PC?"*. Manually pinging every device, one by one, is tedious — and nobody keeps a record that could show *when* a device went down or how often.
+
+### 5. Documentation was never finished
+Documenting is a chore people postpone — so it falls out of date quickly, and old documents become actively misleading. The only cure is a tool whose documentation **is** the tool: if it's not in the system, it doesn't exist.
+
+---
+
+## What the platform does
+
+The Suite turns each pain point above into a designed feature:
+
+| Problem | Platform response |
+|---------|-------------------|
+| Spreadsheet cable logs | A **Cable Runs** table where every run is linked to its outlet, room, panel, and port — with test result (Pass/Fail/Pending) and status. |
+| Scattered documentation | A single **REST API + database** behind one dashboard. Rooms, outlets, panels, cables, VLANs, and devices all reference each other. |
+| IP guesswork | A **device/IP inventory** that records name, IP, MAC, VLAN, and location — the "source of truth" before you assign an address. |
+| No health visibility | **Live monitoring** that pings every tracked device on demand or all at once, reports **UP/DOWN** with round-trip time, and keeps per-device history. |
+| Documentation never finished | Updating records is a first-class action (add/edit/delete from the UI), and seeded demo data shows exactly how a well-documented network looks. |
+
+### The dashboard ties it all together
+
+The landing tab aggregates the *state of the world*:
+
+- Counts of rooms, outlets, active cables, **failed cable tests**, patch panels, VLANs, and devices.
+- A live **uptime snapshot**: how many monitored devices are up vs. down right now.
+
+This answers, in one screen: *"roughly how healthy is this network, and how much of it have we actually documented?"*
+
+---
+
+## Who it is for
+
+- **SMEs and government/zonal offices** running their own small–medium LANs (the exact environment this was born in).
+- **Network technicians** who wire buildings and need to hand over clean, testable documentation.
+- **Students/graduates** wanted a realistic, complete full-stack project to study or extend.
+- Any organization still tracking infrastructure in spreadsheets that wants a zero-cost upgrade path.
+
+---
+
+## Modules in depth
+
+### Module 1 — Infrastructure (the physical plant)
+
+The physical layer is a chain: **Room → Outlet → Cable → Patch panel port → Switch**.
+
+- **Rooms** — every office, lab, or server room, with floor and purpose (e.g. *Admin Office*, *floor 1*).
+- **Wall Outlets** — the labeled keystone jacks people actually plug into (e.g. `A-101`, `B-201`), each belonging to a room.
+- **Patch Panels** — rack-mounted panels in the server room (e.g. *Core Patch Panel, 24 ports*).
+- **Cable Runs** — the crucial relational record: one cable binds an **outlet** to a **patch-panel port**, and stores:
+  - Cable ID (wall label ↔ port label convention, e.g. `A-101`),
+  - Length in metres, cable category (Cat5e/Cat6/Cat6a),
+  - **Test result** — Pass / Fail / Pending (this mirrors the real cable-testing step in structured cabling),
+  - Lifecycle **status** — Active / Inactive.
+
+> When a wall outlet loses its link, the technician opens *Infrastructure*, searches the outlet label, and immediately sees exactly **which patch-panel port** the run terminates at — no crawling under desks.
+
+### Module 2 — IP & VLAN administration (the logical design)
+
+- **VLANs** — the segmentation scheme, exactly as configured on the switches: VLAN ID, name, subnet, and gateway (e.g. *VLAN 10 Admin → 192.168.10.0/24 → gateway 192.168.10.1*).
+- **Devices** — routers, switches, servers, and workstations, each carrying: IP address, MAC address, assigned VLAN, device type, and physical location.
+
+> Before assigning an IP, you look it up here. **No more conflicts.** And when a device is suspected of an issue, its *device type* (Router/Switch) automatically makes it monitored.
+
+### Module 3 — Monitoring (live health)
+
+- Ping a **single device** any time, or **all devices** with one click.
+- Each check records **status** + **round-trip time** into a history table.
+- The **Monitoring tab** shows the latest status per device; clicking *history* shows the last 50 checks — so you can see *when* a device started failing, not just that it is failing.
+
+---
+
+## A real-world walkthrough
+
+**Scenario — a user reports "my internet is slow".**
+
+1. Open the **Monitoring** tab → *Check All Now*.
+2. `Router → UP (4 ms)`, `CoreSwitch → UP (9 ms)`, `FileServer → DOWN` … the network core is fine; the file server is the problem.
+3. Open **IP & VLAN** → find `FileServer` → location *Server Room*, VLAN *Admin*.
+4. Open the server's **history** → it started failing at 09:42 — matching the timeframe the issue was reported.
+5. The technician knows exactly what to check first, instead of rebooting the router "just in case".
+
+**Scenario — a new office is wired.**
+
+1. Add the room, add its outlets.
+2. Add the patch panel(s).
+3. Add each cable run as it is crimped and tested → mark **Pass/Fail**.
+4. Create the VLANs, then add every device with its IP.
+5. Enable monitoring on the active switches.
+6. Documentation is *finished the day the work is* — and the dashboard shows all cables Active, no failed tests.
 
 ---
 
 ## Features
 
-### 1. Infrastructure Documentation
-Records the physical network plant, mirroring the structured-cabling work performed on-site:
+### Infrastructure Documentation
+- Rooms, wall outlets, patch panels, and cable runs in one relational model.
+- Cable metadata: ID, length, category, **test result** (Pass/Fail/Pending), status.
+- Full CRUD through the UI (add, delete, update).
 
-- **Rooms** — offices, server room, floors, and purpose.
-- **Wall Outlets** — labeled outlets per room (e.g. `A-101`, `B-201`).
-- **Patch Panels** — rack-located panels with port counts.
-- **Cable Runs** — links between outlets and patch-panel ports, including cable type (Cat5e/Cat6/Cat6a), length, test result (Pass/Fail/Pending), and lifecycle status.
+### IP & VLAN Administration
+- VLAN register: ID, name, subnet, gateway, description.
+- Device/IP inventory with MAC, VLAN binding, type, and location.
 
-### 2. IP & VLAN Administration
-Tracks the logical network design that separates departments:
+### Live Monitoring
+- One-click/on-demand ICMP ping (single device or entire fleet).
+- **UP/DOWN** status + round-trip time (ms).
+- Per-device history (last 50 checks).
+- Routers and switches are always monitored; any device can be opted in.
 
-- **VLANs** — VLAN ID, name, subnet, and gateway (e.g. VLAN 10 Admin `192.168.10.0/24`).
-- **Devices / IP Inventory** — routers, switches, servers, workstations with IP, MAC, VLAN assignment, and location.
-
-### 3. Live Monitoring
-Pings monitored devices on demand or all at once:
-
-- **Up/Down status** with round-trip time (RTT) in milliseconds.
-- **Per-device monitoring history** (last 50 checks) for trend review.
-- **Dashboard uptime snapshot** showing current availability across the fleet.
-
-### 4. Dashboard
-Aggregated operational overview: counts of rooms, outlets, active cables, failed cable tests, patch panels, VLANs, devices, and the live up/down summary.
+### Dashboard
+- Aggregate counts including **failed cable tests** as a quality signal.
+- Live up/down uptime summary.
 
 ---
 
@@ -59,24 +185,48 @@ Aggregated operational overview: counts of rooms, outlets, active cables, failed
 
 ```
 ┌─────────────────────────────┐
-│  Web Browser (frontend)     │
-│  Vanilla HTML/CSS/JS        │
+│  Web Browser (frontend)     │   Vanilla HTML/CSS/JS
 └──────────────┬──────────────┘
                │  REST / JSON (fetch)
 ┌──────────────▼──────────────┐
-│  Node.js + Express (API)     │
-│  server/server.js            │
+│  Node.js + Express 5 (API)   │   server/server.js
 └──────┬───────────────┬───────┘
        │               │
-┌──────▼──────┐   ┌────▼────────────────┐
-│ SQLite DB   │   │ System ping         │
-│ network.db  │   │ server/monitor.js   │
+┌──────▼──────┐   ┌────▼─────────────────┐
+│ SQLite DB   │   │ System ping          │
+│ network.db  │   │ (ICMP via child_proc)│
 └─────────────┘   └─────────────────────┘
 ```
 
-- The **Express server** exposes a JSON API and serves the static frontend.
-- **better-sqlite3** provides synchronous, zero-configuration persistence in a single file (`network.db`).
-- **Monitoring** shells out to the operating system's `ping` command — no native build toolchain or elevated privileges required.
+- The **Express server** serves the static frontend *and* exposes a JSON API.
+- **SQLite (better-sqlite3)** gives synchronous, transaction-safe persistence in a single portable file — ideal for an office tool with no database server.
+- **Monitoring** shells out to the OS's `ping` — no privileged network libraries, no native toolchain.
+
+---
+
+## How data is modelled (database schema)
+
+Relationships are the core of the Suite. Every table connects to the one before it:
+
+```
+rooms 1───n outlets 1───n cable_runs n───1 patch_panels
+        └──────────────n──────────────┘   (via patch_port)
+
+vlans 1───n devices
+monitor_history n───1 devices   (device_id, status, rtt_ms, checked_at)
+```
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `rooms` | Office/server rooms | name, floor, purpose |
+| `outlets` | Wall keystone jacks | label, location, **room_id** |
+| `patch_panels` | Rack panels | name, location, ports |
+| `cables` | The outlet↔port binding | **outlet_id**, **patch_panel_id**, patch_port, length_m, cable_type, test_result, status |
+| `vlans` | Logical network segments | vlan_id, name, subnet, gateway |
+| `devices` | Hardware + IP inventory | name, ip, device_type, **vlan_id**, mac, location, monitored |
+| `monitor_history` | Ping results (append-only) | **device_id**, status, rtt_ms, checked_at |
+
+Foreign keys cascade deletes (e.g. deleting a room removes its outlets), and `monitor_history` is the only append-only table — it never overwrites, so trends stay visible.
 
 ---
 
@@ -86,7 +236,7 @@ Aggregated operational overview: counts of rooms, outlets, active cables, failed
 |-------------|----------------------------------------------|
 | Backend     | Node.js, Express 5                            |
 | Database    | SQLite via `better-sqlite3`                   |
-| Monitoring  | OS `ping` (ICMP) through `child_process`      |
+| Monitoring  | OS `ping` (ICMP) via `child_process`          |
 | Frontend    | Vanilla HTML5, CSS3, JavaScript (no build step) |
 | Runtime     | Node.js ≥ 18                                   |
 
@@ -98,7 +248,7 @@ Aggregated operational overview: counts of rooms, outlets, active cables, failed
 
 - [Node.js](https://nodejs.org/) **≥ 18** (developed and tested on Node 24).
 - `npm` (bundled with Node.js).
-- A system `ping` command available on `PATH` (standard on Windows, macOS, and Linux).
+- A system `ping` command on `PATH` (standard on Windows, macOS, and Linux).
 
 ### Installation
 
@@ -106,11 +256,11 @@ Aggregated operational overview: counts of rooms, outlets, active cables, failed
 # 1. Clone or copy the project, then install dependencies
 npm install
 
-# 2. Optional — load demo data reflecting a typical office setup
+# 2. Optional — load the demo data (a realistic office network)
 npm run seed
 ```
 
-> **Note:** `better-sqlite3` compiles a native binding during `npm install`. A prebuilt binary is downloaded automatically for most platforms. If compilation is required, make sure a compatible build toolchain is present (e.g. Visual Studio Build Tools / Python on Windows).
+> **Note:** `better-sqlite3` compiles a native binding during `npm install`. A prebuilt binary is downloaded automatically for most platforms; otherwise a compatible build toolchain is required (e.g. Visual Studio Build Tools on Windows).
 
 ### Running the application
 
@@ -118,22 +268,18 @@ npm run seed
 npm start
 ```
 
-Open your browser and visit:
+Open your browser at **http://localhost:8080** (the server prints its URL on startup).
 
-```
-http://localhost:3000
-```
-
-The server prints the URL on startup. To run on a different port:
+To run on another port:
 
 ```bash
-$env:PORT = 8080   # PowerShell
+$env:PORT = 9090   # PowerShell
+# or
+export PORT=9090   # Linux/macOS
 npm start
 ```
 
 ### Resetting the database
-
-To start from a clean slate:
 
 ```bash
 # Stop the server, then delete the database file(s)
@@ -141,9 +287,26 @@ Remove-Item network.db*   # Windows (PowerShell)
 # or
 rm network.db*            # Linux/macOS
 
-npm run seed              # optional: reload demo data
+npm run seed   # optional: reload demo data
 npm start
 ```
+
+### Testing
+
+The project ships with an automated API test suite built on Node's built-in test runner (no extra dependencies):
+
+```bash
+npm test
+```
+
+Tests run against an isolated temporary database (so your `network.db` is never touched) and cover:
+
+- Room CRUD and **cascade deletes** (room → outlets),
+- **FK integrity** — cables survive a room deletion and their outlet reference is nulled (`ON DELETE SET NULL`),
+- **`monitored` normalization** — the string `"0"` must not enable monitoring,
+- **PATCH semantics** — updating only the fields provided,
+- **Live monitoring** — a real ping to `127.0.0.1` returning `up` with an RTT value,
+- **Dashboard** aggregates and uptime summary.
 
 ---
 
@@ -151,12 +314,14 @@ npm start
 
 ```
 ├── package.json            # Project metadata, scripts, dependencies
-├── network.db              # SQLite database (created automatically)
+├── network.db              # SQLite database (created automatically at first run)
 ├── server/
-│   ├── db.js               # Schema definition + connection
-│   ├── seed.js             # Demo data loader
+│   ├── db.js               # Schema definition + connection factory
+│   ├── seed.js             # Demo-data loader
 │   ├── monitor.js          # ICMP ping wrapper
-│   └── server.js           # Express app + REST API
+│   ├── server.js           # Express app + REST API + static hosting
+│   └── test/
+│       └── api.test.js     # Automated API test suite (node:test)
 └── public/
     ├── index.html          # Single-page dashboard
     ├── css/
@@ -169,112 +334,101 @@ npm start
 
 ## API Reference
 
-All endpoints return JSON and live under `http://localhost:3000/api`.
+All endpoints return JSON and live under `http://localhost:8080/api`.
 
 ### Rooms
-
-| Method | Path            | Description             |
-|--------|-----------------|-------------------------|
-| GET    | `/api/rooms`    | List rooms              |
-| POST   | `/api/rooms`    | Create room             |
-| DELETE | `/api/rooms/:id`| Delete room (cascade)   |
+| Method | Path               | Description           |
+|--------|--------------------|-----------------------|
+| GET    | `/api/rooms`       | List rooms            |
+| POST   | `/api/rooms`       | Create room           |
+| DELETE | `/api/rooms/:id`   | Delete room (cascade) |
 
 ### Outlets
-
-| Method | Path              | Description             |
-|--------|-------------------|-------------------------|
-| GET    | `/api/outlets`    | List wall outlets       |
-| POST   | `/api/outlets`    | Create outlet           |
-| DELETE | `/api/outlets/:id`| Delete outlet           |
+| Method | Path               | Description           |
+|--------|--------------------|-----------------------|
+| GET    | `/api/outlets`     | List wall outlets     |
+| POST   | `/api/outlets`     | Create outlet         |
+| DELETE | `/api/outlets/:id` | Delete outlet         |
 
 ### Patch Panels
-
-| Method | Path                   | Description           |
-|--------|------------------------|-----------------------|
-| GET    | `/api/patchpanels`     | List patch panels     |
-| POST   | `/api/patchpanels`     | Create patch panel    |
-| DELETE | `/api/patchpanels/:id` | Delete patch panel    |
+| Method | Path                     | Description          |
+|--------|--------------------------|----------------------|
+| GET    | `/api/patchpanels`       | List patch panels    |
+| POST   | `/api/patchpanels`       | Create patch panel   |
+| DELETE | `/api/patchpanels/:id`   | Delete patch panel   |
 
 ### Cables
-
-| Method | Path             | Description                                   |
-|--------|------------------|-----------------------------------------------|
-| GET    | `/api/cables`    | List cable runs (joined with outlet/room/panel)|
-| POST   | `/api/cables`    | Create cable run                              |
-| PATCH  | `/api/cables/:id`| Update test result / status                   |
-| DELETE | `/api/cables/:id`| Delete cable run                              |
+| Method | Path              | Description                                        |
+|--------|-------------------|----------------------------------------------------|
+| GET    | `/api/cables`     | List cable runs (joined with outlet/room/panel)    |
+| POST   | `/api/cables`     | Create cable run                                   |
+| PATCH  | `/api/cables/:id` | Update test result / status                        |
+| DELETE | `/api/cables/:id` | Delete cable run                                   |
 
 ### VLANs
-
-| Method | Path         | Description       |
-|--------|--------------|-------------------|
-| GET    | `/api/vlans` | List VLANs        |
-| POST   | `/api/vlans` | Create VLAN       |
+| Method | Path         | Description   |
+|--------|--------------|---------------|
+| GET    | `/api/vlans` | List VLANs    |
+| POST   | `/api/vlans` | Create VLAN   |
 
 ### Devices
-
-| Method | Path              | Description        |
-|--------|-------------------|--------------------|
-| GET    | `/api/devices`    | List devices       |
-| POST   | `/api/devices`    | Create device      |
-| PATCH  | `/api/devices/:id`| Update device      |
-| DELETE | `/api/devices/:id`| Delete device      |
+| Method | Path               | Description   |
+|--------|--------------------|---------------|
+| GET    | `/api/devices`     | List devices  |
+| POST   | `/api/devices`     | Create device |
+| PATCH  | `/api/devices/:id` | Update device |
+| DELETE | `/api/devices/:id` | Delete device |
 
 ### Monitoring
-
-| Method | Path                       | Description                                   |
-|--------|----------------------------|-----------------------------------------------|
-| POST   | `/api/monitor/check/:id`   | Ping a single device and record the result     |
-| POST   | `/api/monitor/check-all`   | Ping all monitored devices concurrently        |
-| GET    | `/api/monitor/status`      | Latest status for every monitored device       |
-| GET    | `/api/monitor/history/:id` | Last 50 checks for a device                    |
+| Method | Path                        | Description                            |
+|--------|-----------------------------|----------------------------------------|
+| POST   | `/api/monitor/check/:id`    | Ping one device, record the result     |
+| POST   | `/api/monitor/check-all`    | Ping all monitored devices concurrently|
+| GET    | `/api/monitor/status`       | Latest status for every device         |
+| GET    | `/api/monitor/history/:id`  | Last 50 checks for a device            |
 
 ### Dashboard
-
-| Method | Path            | Description                        |
-|--------|-----------------|------------------------------------|
-| GET    | `/api/dashboard`| Aggregate counts and uptime summary |
+| Method | Path            | Description                         |
+|--------|-----------------|-------------------------------------|
+| GET    | `/api/dashboard`| Aggregate counts + uptime summary   |
 
 **Example — create a device:**
-
 ```bash
-curl -X POST http://localhost:3000/api/devices \
+curl -X POST http://localhost:8080/api/devices \
   -H "Content-Type: application/json" \
   -d '{"name":"Printer-01","ip":"192.168.10.20","device_type":"Workstation","vlan_id":1,"monitored":true}'
 ```
 
 **Example — ping a device:**
-
 ```bash
-curl -X POST http://localhost:3000/api/monitor/check/4
+curl -X POST http://localhost:8080/api/monitor/check/4
 ```
 
 ---
 
-## Monitoring
+## Monitoring explained
 
-Monitoring uses the operating system's `ping` command, which makes it dependency-free and works without special privileges. Devices are monitored when:
+Monitoring uses the operating system's `ping` command — the same tool a technician would type by hand, automated by the platform:
 
-- `monitored` is enabled on the device, **or**
-- the device type is `Router` or `Switch` (infrastructure devices are always tracked).
+- A device is monitored when **`monitored` is enabled**, **or** its type is **Router/Switch** (core infrastructure is always tracked).
+- A check records **status** (`up`/`down`) and **round-trip time** into `monitor_history`.
+- The status table shows the *latest* result; the history panel shows the *last 50* — revealing patterns, not just snapshots.
 
-Each check records **status** (`up`/`down`) and **round-trip time** into `monitor_history`, which powers both the status table and the per-device history panel.
-
-> **Tip for demos:** devices on private networks (e.g. the seeded `192.168.x.x` devices) will typically report `down` on a machine not connected to that network, which neatly demonstrates the monitoring detecting failures. For a guaranteed `up` example, ping `127.0.0.1` (your own machine) from the Monitoring tab.
+> **Demo tip:** devices on private networks (the seeded `192.168.x.x` set) will report `down` on a machine not connected to that network — which neatly demonstrates failure detection. For a guaranteed `up` example, add a device pointing at `127.0.0.1` (your own machine).
 
 ---
 
-## Screenshots / Demo Data
+## Demo data
 
-Seed data (`npm run seed`) reflects a real office layout and connects every module:
+`npm run seed` loads a realistic office network that exercises every module and references every one of your internship's themes — cabling (T568 crimping, labeling, testing), VLANs (departmental segmentation), and routing/switching:
 
-| Entity        | Demo entries                                        |
-|---------------|-----------------------------------------------------|
-| Rooms         | Admin Office, ICT/Networking Office, Server Room     |
-| Outlets       | A-101, A-102, B-201, B-202, S-301                    |
-| Patch Panels  | Core Patch Panel (24 ports)                          |
-| Cables        | A-101 … S-301, tested Pass, active                   |
-| VLANs         | 10 Admin, 20 ICT_Networking, 99 Infrastructure       |
+| Entity        | Demo entries                                                      |
+|---------------|-------------------------------------------------------------------|
+| Rooms         | Admin Office, ICT/Networking Office, Server Room                   |
+| Outlets       | A-101, A-102, B-201, B-202, S-301                                  |
+| Patch Panels  | Core Patch Panel (24 ports)                                        |
+| Cables        | A-101 … S-301 — all tested **Pass**, status Active                 |
+| VLANs         | 10 Admin, 20 ICT_Networking, 99 Infrastructure                     |
 | Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, FileServer, WEB-SRV-01 |
 
 ---
@@ -282,14 +436,17 @@ Seed data (`npm run seed`) reflects a real office layout and connects every modu
 ## Ideas for Extensions
 
 - **Authentication & roles** — admin vs. view-only access.
-- **Auto-refresh** — schedule monitoring checks with `setInterval` and push status via WebSockets/SSE.
+- **Auto-refresh monitoring** — scheduled checks (`setInterval`) pushed via WebSockets/SSE.
 - **Alerts** — email/Telegram notifications when a watched device goes down.
-- **Rack diagram** — visual rack/patch-panel mapping (DP/port to outlet).
-- **CSV/Excel export** — generate the cable log as a spreadsheet.
-- **Network scanning** — integrate `arp`/`nmap` to auto-discover devices on the LAN.
+- **Rack diagram** — visual rack/patch-panel mapping (panel port → outlet).
+- **CSV/Excel export** — generate the cable log as a spreadsheet for sharing.
+- **Network discovery** — integrate `arp`/`nmap` to auto-suggest devices on the LAN.
+- **Inter-VLAN routing view** — mirror the router-on-a-stick design with dotted-1Q sub-interfaces.
 
 ---
 
 ## License
 
-This project was created as part of a Computer Science internship report (Dilla University, 2026) and is shared for educational and demonstration purposes.
+Released under the MIT License — see the [LICENSE](LICENSE) file for details.
+
+Created as part of a Computer Science internship report (Dilla University, 2026) and shared for educational and demonstration purposes.

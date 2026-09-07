@@ -1,0 +1,18 @@
+# Normalize line endings for all text files
+* text=auto
+
+# Force LF for source files (consistent across Windows/macOS/Linux)
+*.js text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+LICENSE text eol=lf
+
+# Binary artifacts
+*.db binary
+*.png binary
+*.jpg binary
+*.ico binary

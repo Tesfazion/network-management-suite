@@ -116,10 +116,14 @@ app.get('/api/devices', (req, res) => {
     ORDER BY d.name`).all());
 });
 
+function toMonitorFlag(v) {
+  return (v === true || v === 1 || v === '1') ? 1 : 0;
+}
+
 app.post('/api/devices', (req, res) => {
   const { name, ip, device_type, vlan_id, mac, location, monitored } = req.body;
   const r = db.prepare('INSERT INTO devices (name, ip, device_type, vlan_id, mac, location, monitored) VALUES (?,?,?,?,?,?,?)')
-    .run(name, ip, device_type, vlan_id, mac, location, monitored ? 1 : 0);
+    .run(name, ip, device_type, vlan_id, mac, location, toMonitorFlag(monitored));
   res.json(db.prepare('SELECT * FROM devices WHERE id=?').get(r.lastInsertRowid));
 });
 
@@ -131,7 +135,8 @@ app.patch('/api/devices/:id', (req, res) => {
     name=COALESCE(?,name), ip=COALESCE(?,ip), device_type=COALESCE(?,device_type),
     vlan_id=COALESCE(?,vlan_id), mac=COALESCE(?,mac), location=COALESCE(?,location),
     monitored=COALESCE(?,monitored) WHERE id=?`)
-    .run(name, ip, device_type, vlan_id, mac, location, monitored, req.params.id);
+    .run(name, ip, device_type, vlan_id, mac, location,
+      monitored === undefined ? undefined : toMonitorFlag(monitored), req.params.id);
   res.json(db.prepare('SELECT * FROM devices WHERE id=?').get(req.params.id));
 });
 
@@ -214,7 +219,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Network Management Suite running at http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 8080;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Network Management Suite running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

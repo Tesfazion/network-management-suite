@@ -1,11 +1,13 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, '..', 'network.db'));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+function createDb(location) {
+  const dbPath = location || process.env.DATABASE_PATH || path.join(__dirname, '..', 'network.db');
+  const db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
 
-db.exec(`
+  db.exec(`
 CREATE TABLE IF NOT EXISTS rooms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -33,8 +35,8 @@ CREATE TABLE IF NOT EXISTS patch_panels (
 CREATE TABLE IF NOT EXISTS cables (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   cable_id TEXT UNIQUE NOT NULL,
-  outlet_id INTEGER REFERENCES outlets(id),
-  patch_panel_id INTEGER REFERENCES patch_panels(id),
+  outlet_id INTEGER REFERENCES outlets(id) ON DELETE SET NULL,
+  patch_panel_id INTEGER REFERENCES patch_panels(id) ON DELETE SET NULL,
   patch_port TEXT,
   length_m REAL,
   cable_type TEXT DEFAULT 'Cat6',
@@ -74,4 +76,7 @@ CREATE TABLE IF NOT EXISTS monitor_history (
 );
 `);
 
-module.exports = db;
+  return db;
+}
+
+module.exports = createDb();
