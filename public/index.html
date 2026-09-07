@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta viewport="width=device-width, initial-scale=1">
+  <title>Network Management Suite</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">NW Suite <span class="sub">Network Management Dashboard</span></div>
+    <nav id="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="infrastructure">Infrastructure</button>
+      <button class="tab" data-tab="ipvlan">IP &amp; VLAN</button>
+      <button class="tab" data-tab="monitoring">Monitoring</button>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section id="dashboard" class="view active">
+      <h2>Overview</h2>
+      <div class="cards" id="dashCards"></div>
+      <h3>Uptime snapshot</h3>
+      <div class="mini" id="dashUptime"></div>
+    </section>
+
+    <section id="infrastructure" class="view">
+      <h2>Infrastructure</h2>
+      <div class="grid">
+        <div class="card-block">
+          <h3>Rooms</h3>
+          <button class="btn" data-entity="rooms">Add Room</button>
+          <table><thead><tr><th>Name</th><th>Floor</th><th>Purpose</th><th></th></tr></thead><tbody id="roomsBody"></tbody></table>
+        </div>
+        <div class="card-block">
+          <h3>Wall Outlets</h3>
+          <button class="btn" data-entity="outlets">Add Outlet</button>
+          <table><thead><tr><th>Label</th><th>Location</th><th>Room</th><th></th></tr></thead><tbody id="outletsBody"></tbody></table>
+        </div>
+        <div class="card-block">
+          <h3>Patch Panels</h3>
+          <button class="btn" data-entity="patchpanels">Add Panel</button>
+          <table><thead><tr><th>Name</th><th>Location</th><th>Ports</th><th></th></tr></thead><tbody id="panelsBody"></tbody></table>
+        </div>
+        <div class="card-block full">
+          <h3>Cable Runs</h3>
+          <button class="btn" data-entity="cables">Add Cable</button>
+          <table><thead><tr><th>ID</th><th>Outlet</th><th>Room</th><th>Panel</th><th>Port</th><th>Type</th><th>Test</th><th>Status</th><th></th></tr></thead><tbody id="cablesBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="ipvlan" class="view">
+      <h2>IP &amp; VLAN Administration</h2>
+      <div class="grid">
+        <div class="card-block">
+          <h3>VLANs</h3>
+          <button class="btn" data-entity="vlans">Add VLAN</button>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th></th></tr></thead><tbody id="vlansBody"></tbody></table>
+        </div>
+        <div class="card-block">
+          <h3>Devices / IP Inventory</h3>
+          <button class="btn" data-entity="devices">Add Device</button>
+          <table><thead><tr><th>Name</th><th>IP</th><th>Type</th><th>VLAN</th><th>Monitor</th><th></th></tr></thead><tbody id="devicesBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="monitoring" class="view">
+      <h2>Live Monitoring</h2>
+      <div class="toolbar">
+        <button class="btn primary" id="checkAll">Check All Now</button>
+        <span id="monitorMsg"></span>
+      </div>
+      <table><thead><tr><th>Device</th><th>IP</th><th>Type</th><th>Status</th><th>RTT</th><th>Last checked</th><th>History</th></tr></thead><tbody id="monitorBody"></tbody></table>
+      <div id="historyPane"></div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal">
+    <div class="modal-box">
+      <h3 id="modalTitle"></h3>
+      <form id="modalForm"></form>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
