@@ -598,8 +598,6 @@ async function search(q) {
   }
   box.hidden = false;
 }
-  box.hidden = false;
-}
 
 // ---------- Modals / forms ----------
 const forms = {
