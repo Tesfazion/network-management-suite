@@ -1,57 +1,44 @@
 @echo off
-rem =============================================================
-rem  Network Management Suite - Windows installer
-rem  Installs dependencies and optionally loads demonstration data.
-rem  Run this from the project folder.
-rem =============================================================
-setlocal
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+title Network Management Suite - installer
 
-echo.
-echo  ============================================
-echo   Network Management Suite - installation
-echo  ============================================
+echo ==============================================
+echo   Network Management Suite - Windows install
+echo ==============================================
 echo.
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo  ERROR: Node.js was not found.
-  echo  Install it from https://nodejs.org then run this script again.
-  echo.
+  echo [ERROR] Node.js was not found.
+  echo   Download it from https://nodejs.org and re-run this script.
   pause
   exit /b 1
 )
 
-echo  [1/3] Installing dependencies ^(npm install^)...
-call npm install
-if errorlevel 1 (
-  echo  ERROR: npm install failed.
-  echo.
-  pause
-  exit /b 1
-)
-
-echo  [2/3] Preparing the database...
-echo        The database file network.db is created automatically on first run.
-
-echo  [3/3] Demonstration data ^(optional^)
-set /p wantdemo=        Load a demonstration office network? [y/N]: 
-if /i "%wantdemo%"=="y" (
-  call npm run seed
+if not exist node_modules (
+  echo Installing dependencies ^(this can take a minute^)...
+  call npm install --omit=dev
   if errorlevel 1 (
-    echo  ERROR: seeding failed.
+    echo [ERROR] npm install failed. Check your internet connection.
     pause
     exit /b 1
   )
+) else (
+  echo Dependencies already installed.
 )
 
-if not defined PORT set "PORT=8080"
+if "%PORT%"=="" set PORT=8080
 
 echo.
-echo  ------------------------------------------------------------
-echo   Installation complete.
-echo   - Start the Suite with:   npm start
-echo   - Open in your browser:   http://localhost:%PORT%
-echo   - Change the organization name from the sidebar footer.
-echo  ------------------------------------------------------------
+echo Starting Network Management Suite on port !PORT!...
+echo   Local:  http://localhost:!PORT!
+echo   LAN:    http://<this-computer-ip>:!PORT!
 echo.
-endlocal
+echo The first run opens the setup wizard - enter your organization name.
+echo.
+
+start "Network Management Suite" node server/server.js
+timeout /t 2 /nobreak >nul
+echo Server started in its own window. You can close this one.
+pause >nul

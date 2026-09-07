@@ -83,18 +83,18 @@ function loadDemo(db) {
     return id;
   };
   const CORE = 'n-core';
-  addNode(CORE, 'switch', 'CoreSwitch', 900, 490, dCoreSwitch, 'z-server');
-  addNode('n-router', 'router', 'Router', 905, 220, dRouter, 'z-server');
-  addNode('n-access', 'switch', 'AccessSwitchA', 590, 240, dAccess, 'z-server');
-  addNode('n-file', 'server', 'FileServer', 580, 90, dFile, 'z-server');
-  addNode('n-web', 'server', 'WEB-SRV-01', 585, 410, dWeb, 'z-server');
-  addNode('n-adminpc', 'pc', 'AdminPC-01', 550, 260, dAdminPc, 'z-admin');
-  addNode('n-hrpc', 'pc', 'HR-PC-01', 180, 210, dHrPc, 'z-admin');
-  addNode('n-ictpc', 'pc', 'ICT-PC-01', 450, 260, dIctPc, 'z-ict');
-  addNode('n-printer1', 'printer', 'Printer-01', 100, 90, dPrinter1, 'z-ict');
-  addNode('n-printer2', 'printer', 'Printer-02', 300, 80, dPrinter2, 'z-ict');
+  addNode(CORE, 'switch', 'CoreSwitch', 95, 110, dCoreSwitch, 'z-server');
+  addNode('n-router', 'router', 'Router', 175, 110, dRouter, 'z-server');
+  addNode('n-access', 'switch', 'AccessSwitchA', 95, 230, dAccess, 'z-server');
+  addNode('n-file', 'server', 'FileServer', 175, 230, dFile, 'z-server');
+  addNode('n-web', 'server', 'WEB-SRV-01', 255, 110, dWeb, 'z-server');
+  addNode('n-adminpc', 'pc', 'AdminPC-01', 430, 110, dAdminPc, 'z-admin');
+  addNode('n-hrpc', 'pc', 'HR-PC-01', 600, 110, dHrPc, 'z-admin');
+  addNode('n-ictpc', 'pc', 'ICT-PC-01', 850, 110, dIctPc, 'z-ict');
+  addNode('n-printer1', 'printer', 'Printer-01', 1010, 110, dPrinter1, 'z-ict');
+  addNode('n-printer2', 'printer', 'Printer-02', 1010, 230, dPrinter2, 'z-ict');
 
-  // core switch (VLAN 99 infra) fans out to each office access device / server
+  // CoreSwitch (VLAN 99 infra) fans out to every office access device and server
   links.push({ from: CORE, to: 'n-router' });
   links.push({ from: CORE, to: 'n-access' });
   links.push({ from: CORE, to: 'n-file' });

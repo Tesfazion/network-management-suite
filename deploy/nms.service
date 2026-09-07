@@ -1,20 +1,30 @@
+# Network Management Suite - systemd unit
+#
+# Install:
+#   sudo useradd --system --home /opt/nms --shell /usr/sbin/nologin nms
+#   sudo mkdir -p /opt/nms && sudo chown nms:nms /opt/nms
+#   Copy/sync the project into /opt/nms (npm install --omit=dev as the nms user).
+#   sudo cp deploy/nms.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nms
+#
+# Open http://<server-ip>:8080 and complete the setup wizard.
+
 [Unit]
 Description=Network Management Suite
 After=network.target
 
 [Service]
 Type=simple
-# Install the project here, e.g. /opt/network-management-suite
-WorkingDirectory=/opt/network-management-suite
-ExecStart=/usr/bin/node server/server.js
-Restart=on-failure
-RestartSec=3
-Environment=PORT=8080
-Environment=HOST=0.0.0.0
-# Run as an unprivileged user you create, e.g.:
-#   sudo useradd -r -s /usr/sbin/nologin nms
 User=nms
 Group=nms
+WorkingDirectory=/opt/nms
+# Install node where your distro puts it, e.g. /usr/bin/node
+ExecStart=/usr/bin/node server/server.js
+Environment=PORT=8080
+# HOST defaults to 0.0.0.0 so the suite is reachable on your LAN.
+# Restart=on-failure
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target

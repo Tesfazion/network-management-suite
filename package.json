@@ -2,7 +2,7 @@
   "name": "network-management-suite",
   "version": "1.0.0",
   "description": "Web application for documenting, administering, and monitoring office network infrastructure: cabling, patch panels, IP/VLAN inventory, and live device monitoring.",
-  "main": "index.js",
+  "main": "server/index.js",
   "scripts": {
     "start": "node server/server.js",
     "setup": "node scripts/setup.js",

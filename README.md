@@ -308,7 +308,7 @@ Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets
 | Monitoring  | OS `ping` (ICMP) via `child_process`          |
 | Frontend    | Vanilla HTML5, CSS3, JavaScript (no build step) |
 | Tests       | Node.js built-in test runner (`node --test`)  |
-| Runtime     | Node.js ≥ 18                                   |
+| Runtime     | Node.js ≥ 22                                   |
 
 ---
 
@@ -316,7 +316,7 @@ Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) **≥ 18** (developed and tested on Node 24).
+- [Node.js](https://nodejs.org/) **≥ 22** (developed and tested on Node 24).
 - `npm` (bundled with Node.js).
 - A system `ping` command on `PATH` (standard on Windows, macOS, and Linux).
 
@@ -430,15 +430,19 @@ Tests run against an isolated temporary database (so your `network.db` is never 
 │   ├── db.js               # Schema definition + connection factory
 │   ├── seed.js             # Demo-data loader CLI
 │   ├── seed-data.js        # Shared loadDemo(db) used by seed.js and /api/setup
-│   ├── monitor.js          # ICMP ping wrapper
-│   ├── iputil.js           # IP/CIDR helpers + conflict detection
-│   ├── server.js           # Express app + REST API + static hosting
-│   └── test/
-│       └── api.test.js     # Automated API test suite (node:test)
+│   ├── lib/
+│   │   ├── monitor.js      # ICMP ping wrapper
+│   │   └── iputil.js       # IP/CIDR helpers + conflict detection
+│   ├── config.js           # Environment-driven configuration
+│   ├── app.js              # Express middleware + security headers
+│   ├── server.js           # HTTP server + graceful shutdown
+│   ├── middleware/         # Auth, security, error handling
+│   ├── routes/             # All REST API route modules
+│   └── test/               # Automated API + security tests
 └── public/
-    ├── index.html          # Single-page dashboard
+    ├── index.html          # Single-page dashboard (ARIA-accessible)
     ├── css/
-    │   └── style.css       # Professional dark theme
+    │   └── style.css       # Professional dark theme + accessibility utilities
     └── js/
         └── app.js          # Frontend logic (views, CRUD, monitoring, diagram, setup)
 ```
@@ -577,7 +581,7 @@ Monitoring uses the operating system's `ping` command — the same tool a techni
 | VLANs         | 10 Admin (192.168.10.0/24), 20 ICT_Networking (192.168.20.0/24), 99 Infrastructure (192.168.99.0/24) |
 | Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, **WEB-SRV-01**, FileServer, Printer-01, **Printer-02**, HR-PC-01 |
 | Issues        | High-file-server-down (Open), Medium-slow-internet (In Progress), Low-printer-paper (Resolved) |
-| Diagram       | 3 site zones (Server Room, Admin Office, ICT Office) each with a shaded group of 10 linked, real-device icons — CoreSwitch in the middle |
+| Diagram       | 3 site zones (Server Room, Admin Office, ICT Office) — each device sits inside its shaded office box, 10 icons linked in a core-switch star, live status colors |
 
 The seed *deliberately* includes two live problems so the audit feature is immediately demonstrable:
 
@@ -594,6 +598,68 @@ The seed *deliberately* includes two live problems so the audit feature is immed
 - **Network discovery** — integrate `arp`/`nmap` to auto-suggest devices on the LAN.
 - **Inter-VLAN routing view** — mirror the router-on-a-stick design with dot1q sub-interfaces.
 - **Scheduler** — persist periodic checks to a schedule (the UI auto-refresh already re-pings on a 15 s interval).
+
+---
+
+## Contributing
+
+This project follows standard open-source conventions:
+
+1. Fork / clone the repository.
+2. Create a feature branch: `git checkout -b feat/my-improvement`.
+3. Run `npm test` to confirm the suite passes.
+4. Run `npm run lint` (or `npx eslint .`) if an ESLint config is present.
+5. Commit with a clear message and open a pull request.
+
+### Code style
+
+- **Backend:** CommonJS modules, JSDoc on public functions, early-return validation.
+- **Frontend:** Vanilla JS, no frameworks; keep `public/js/app.js` as the single source of truth for client logic.
+- **CSS:** BEM-like class names, CSS custom properties in `:root`, mobile-first responsive rules.
+
+---
+
+## Security
+
+- The API supports **optional Bearer authentication** via the `AUTH_TOKEN` environment variable. When unset, the API is open — suitable for isolated office LANs.
+- **Security headers** (CSP, X-Frame-Options, COOP/CORP) are applied to every response.
+- The database file (`network.db`) should be protected by filesystem permissions; it contains all recorded data.
+- Never commit `network.db` or `.env` files — they are gitignored.
+- Report security issues privately to the maintainer rather than opening a public issue.
+
+---
+
+## Deployment
+
+### Production checklist
+
+1. **Node.js ≥ 22** and `npm` installed on the target machine.
+2. Run `npm install --omit=dev` to install only production dependencies.
+3. Optionally pre-configure: `npm run setup -- --org="Your Org" --demo`.
+4. Start: `npm start` (or use the systemd unit in `deploy/nms.service` for Linux).
+5. Open `http://<server-ip>:8080` from any machine on the same network.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PORT` | `8080` | HTTP listen port |
+| `HOST` | `0.0.0.0` | Bind address (use `127.0.0.1` to restrict to localhost) |
+| `AUTH_TOKEN` | _(none)_ | When set, require `Authorization: Bearer <token>` for API access |
+| `DATABASE_PATH` | `./network.db` | SQLite file location |
+| `BODY_LIMIT` | `1mb` | JSON body size limit |
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `npm install` fails on Windows | `better-sqlite3` needs a C++ build toolchain | Install Visual Studio Build Tools, or use WSL/Linux where prebuilt binaries download automatically |
+| Port already in use | Another process on 8080 | `netstat -ano \| findstr :8080` then stop the conflicting process, or set `PORT=9090 npm start` |
+| Ping checks always `down` on demo data | Demo uses `192.168.x.x` private ranges | Add a device with IP `127.0.0.1` to verify monitoring works, or connect the server to the target network |
+| `network.db` is locked | Server still running | Stop the server before deleting/resetting the database |
+| Setup wizard loops | `network.db` missing or corrupt | Delete `network.db*` files and restart |
 
 ---
 

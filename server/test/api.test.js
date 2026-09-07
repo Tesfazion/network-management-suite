@@ -7,7 +7,7 @@ const path = require('node:path');
 const dbFile = path.join(os.tmpdir(), `nms-test-${process.pid}-${Date.now()}.db`);
 process.env.DATABASE_PATH = dbFile;
 
-const app = require('../server');
+const app = require('../app');
 
 let server;
 let base;
@@ -206,4 +206,52 @@ test('setup: fresh install is unconfigured, demo seed loads org + diagram zones'
   const diagram = await fetch(base + '/diagram').then((r) => r.json());
   assert.ok(diagram.zones.length >= 3, 'demo seed should create office zones');
   assert.ok(diagram.nodes.length >= 8, 'demo seed should create nodes');
+});
+
+// ---- Hardening / contract tests --------------------------------------
+
+test('hardening headers are applied to every API response', async () => {
+  const res = await fetch(base + '/health');
+  assert.ok(res.headers.get('content-security-policy'), 'CSP header present');
+  assert.strictEqual(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.strictEqual(res.headers.get('x-frame-options'), 'DENY');
+  assert.strictEqual(res.headers.get('referrer-policy'), 'no-referrer');
+  assert.ok(!res.headers.get('x-powered-by'), 'x-powered-by is suppressed');
+});
+
+test('/api/health reports liveness', async () => {
+  const { status, data } = await req('GET', '/health');
+  assert.strictEqual(status, 200);
+  assert.strictEqual(data.ok, true);
+  assert.ok(data.uptimeSec >= 0);
+});
+
+test('unknown API routes return a JSON 404', async () => {
+  const res = await fetch(base + '/does-not-exist');
+  assert.strictEqual(res.status, 404);
+  const data = await res.json();
+  assert.strictEqual(data.error, 'not found');
+});
+
+test('validation: issues require a title (400)', async () => {
+  const { status, data } = await req('POST', '/issues', { severity: 'High' });
+  assert.strictEqual(status, 400);
+  assert.strictEqual(data.error, 'title is required');
+});
+
+test('validation: devices reject malformed IP addresses', async () => {
+  const { status, data } = await req('POST', '/devices', { name: 'Bad IP', ip: '999.999.1.1' });
+  assert.strictEqual(status, 400);
+  assert.match(data.error, /valid IPv4/);
+});
+
+test('validation: VLAN subnet must be a valid CIDR', async () => {
+  const { status } = await req('POST', '/vlans', { vlan_id: 12, name: 'X', subnet: 'not-a-cidr' });
+  assert.strictEqual(status, 400);
+});
+
+test('validation: oversized names are truncated, not rejected', async () => {
+  const { status, data } = await req('POST', '/rooms', { name: 'R'.repeat(500) });
+  assert.strictEqual(status, 200);
+  assert.strictEqual(data.name.length, 80);
 });

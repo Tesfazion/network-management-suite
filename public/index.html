@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="app">
-    <aside class="sidebar">
+    <aside class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -20,55 +20,56 @@
         <span class="brand-text">NW Suite<small>Network Management</small></span>
       </div>
 
-      <nav id="nav">
-        <button class="nav-item active" data-tab="dashboard">
-          <span class="nav-ico">▦</span> Dashboard
+      <nav id="nav" aria-label="Views">
+        <button class="nav-item active" data-tab="dashboard" aria-current="page">
+          <span class="nav-ico" aria-hidden="true">▦</span> Dashboard
         </button>
         <button class="nav-item" data-tab="infrastructure">
-          <span class="nav-ico">⌁</span> Infrastructure
+          <span class="nav-ico" aria-hidden="true">⌁</span> Infrastructure
         </button>
         <button class="nav-item" data-tab="ipvlan">
-          <span class="nav-ico">≋</span> IP &amp; VLAN
+          <span class="nav-ico" aria-hidden="true">≋</span> IP &amp; VLAN
         </button>
         <button class="nav-item" data-tab="monitoring">
-          <span class="nav-ico">●</span> Monitoring
+          <span class="nav-ico" aria-hidden="true">●</span> Monitoring
         </button>
         <button class="nav-item" data-tab="diagram">
-          <span class="nav-ico">🗀</span> Diagram
+          <span class="nav-ico" aria-hidden="true">🗀</span> Diagram
         </button>
         <button class="nav-item" data-tab="incidents">
-          <span class="nav-ico">⚠</span> Incidents
-          <span class="nav-badge" id="openIssueBadge" hidden></span>
+          <span class="nav-ico" aria-hidden="true">⚠</span> Incidents
+          <span class="nav-badge" id="openIssueBadge" hidden aria-live="polite"></span>
         </button>
       </nav>
 
       <div class="sidebar-foot" title="Organization settings">
-        <span class="org-name" id="orgName">Network Management Suite</span>
+        <span class="org-name" id="orgName" role="button" tabindex="0" aria-label="Organization settings">Network Management Suite</span>
         <span class="muted">v1.2 · SQLite</span>
       </div>
     </aside>
 
     <div class="main">
-      <header class="topbar">
+      <header class="topbar" role="banner">
         <div class="search-wrap">
           <span class="search-ico" aria-hidden="true">⌕</span>
-          <input id="searchInput" type="text" placeholder="Search devices, cables, IP addresses, incidents…" autocomplete="off">
-          <kbd>↵</kbd>
-          <div id="searchResults" class="search-results" hidden></div>
+          <label for="searchInput" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Search devices, cables, IP addresses, incidents…</label>
+          <input id="searchInput" type="text" placeholder="Search devices, cables, IP addresses, incidents…" autocomplete="off" aria-label="Search across all entities">
+          <kbd aria-hidden="true">↵</kbd>
+          <div id="searchResults" class="search-results" hidden role="listbox" aria-label="Search results"></div>
         </div>
         <div class="top-actions">
-          <button class="btn ghost" data-export="cables">Cable log CSV</button>
-          <button class="btn ghost" data-export="devices">Devices CSV</button>
+          <button class="btn ghost" data-export="cables" aria-label="Export cable log as CSV">Cable log CSV</button>
+          <button class="btn ghost" data-export="devices" aria-label="Export device inventory as CSV">Devices CSV</button>
         </div>
       </header>
 
       <main id="content">
-        <section id="dashboard" class="view active">
+        <section id="dashboard" class="view active" aria-labelledby="dashboard-heading">
           <div class="view-head">
-            <h2>Dashboard</h2>
-            <span class="muted" id="dashUpdated"></span>
+            <h2 id="dashboard-heading">Dashboard</h2>
+            <span class="muted" id="dashUpdated" aria-live="polite"></span>
           </div>
-          <div id="dashConflicts"></div>
+          <div id="dashConflicts" aria-live="polite"></div>
           <div class="cards" id="dashCards"></div>
           <div class="grid two">
             <div class="card-block">
@@ -78,26 +79,26 @@
             <div class="card-block">
               <div class="block-head">
                 <h3>Recent incidents</h3>
-                <a class="link" data-goto="incidents">View all →</a>
+                <a class="link" data-goto="incidents" role="link" tabindex="0">View all →</a>
               </div>
               <div id="dashIssues"></div>
             </div>
           </div>
         </section>
 
-        <section id="infrastructure" class="view">
+        <section id="infrastructure" class="view" aria-labelledby="infra-heading">
           <div class="view-head">
-            <h2>Infrastructure</h2>
+            <h2 id="infra-heading">Infrastructure</h2>
             <div class="head-actions">
-              <button class="btn ghost" data-export="cables">Export cable log</button>
-              <button class="btn primary" data-entity="rooms">+ Room</button>
+              <button class="btn ghost" data-export="cables" aria-label="Export cable log">Export cable log</button>
+              <button class="btn primary" data-entity="rooms" aria-label="Add new room">+ Room</button>
             </div>
           </div>
           <div class="grid two">
             <div class="card-block">
               <div class="block-head">
                 <h3>Rooms</h3>
-                <button class="btn sm" data-entity="rooms">Add</button>
+                <button class="btn sm" data-entity="rooms" aria-label="Add room">Add</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>Name</th><th>Floor</th><th>Purpose</th><th class="col-act"></th></tr></thead><tbody id="roomsBody"></tbody></table>
@@ -106,7 +107,7 @@
             <div class="card-block">
               <div class="block-head">
                 <h3>Wall Outlets</h3>
-                <button class="btn sm" data-entity="outlets">Add</button>
+                <button class="btn sm" data-entity="outlets" aria-label="Add wall outlet">Add</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>Label</th><th>Location</th><th>Room</th><th class="col-act"></th></tr></thead><tbody id="outletsBody"></tbody></table>
@@ -115,7 +116,7 @@
             <div class="card-block">
               <div class="block-head">
                 <h3>Patch Panels</h3>
-                <button class="btn sm" data-entity="patchpanels">Add</button>
+                <button class="btn sm" data-entity="patchpanels" aria-label="Add patch panel">Add</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>Name</th><th>Location</th><th>Ports</th><th class="col-act"></th></tr></thead><tbody id="panelsBody"></tbody></table>
@@ -124,7 +125,7 @@
             <div class="card-block full">
               <div class="block-head">
                 <h3>Cable Runs</h3>
-                <button class="btn sm" data-entity="cables">Add cable</button>
+                <button class="btn sm" data-entity="cables" aria-label="Add cable run">Add cable</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>Cable ID</th><th>Outlet</th><th>Room</th><th>Panel</th><th>Port</th><th>Type</th><th>Length</th><th>Test</th><th>Status</th><th class="col-act"></th></tr></thead><tbody id="cablesBody"></tbody></table>
@@ -133,20 +134,20 @@
           </div>
         </section>
 
-        <section id="ipvlan" class="view">
+        <section id="ipvlan" class="view" aria-labelledby="ipvlan-heading">
           <div class="view-head">
-            <h2>IP &amp; VLAN Administration</h2>
+            <h2 id="ipvlan-heading">IP &amp; VLAN Administration</h2>
             <div class="head-actions">
-              <button class="btn ghost" data-export="devices">Export devices</button>
-              <button class="btn primary" data-entity="vlans">+ VLAN</button>
+              <button class="btn ghost" data-export="devices" aria-label="Export devices">Export devices</button>
+              <button class="btn primary" data-entity="vlans" aria-label="Add VLAN">+ VLAN</button>
             </div>
           </div>
-          <div id="ipvlanConflicts"></div>
+          <div id="ipvlanConflicts" aria-live="polite"></div>
           <div class="grid two">
             <div class="card-block">
               <div class="block-head">
                 <h3>VLANs</h3>
-                <button class="btn sm" data-entity="vlans">Add</button>
+                <button class="btn sm" data-entity="vlans" aria-label="Add VLAN">Add</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th>Devices</th></tr></thead><tbody id="vlansBody"></tbody></table>
@@ -155,7 +156,7 @@
             <div class="card-block full">
               <div class="block-head">
                 <h3>Devices / IP Inventory</h3>
-                <button class="btn sm" data-entity="devices">+ Device</button>
+                <button class="btn sm" data-entity="devices" aria-label="Add device">+ Device</button>
               </div>
               <div class="scroller">
                 <table><thead><tr><th>Name</th><th>IP</th><th>Type</th><th>VLAN</th><th>MAC</th><th>Location</th><th>Monitor</th><th class="col-act"></th></tr></thead><tbody id="devicesBody"></tbody></table>
@@ -164,27 +165,27 @@
           </div>
         </section>
 
-        <section id="monitoring" class="view">
+        <section id="monitoring" class="view" aria-labelledby="monitoring-heading">
           <div class="view-head">
-            <h2>Live Monitoring</h2>
+            <h2 id="monitoring-heading">Live Monitoring</h2>
             <div class="head-actions">
-              <label class="toggle-wrap"><input type="checkbox" id="autoRefresh"> <span>Auto-refresh</span></label>
-              <button class="btn primary" id="checkAll">Check all now</button>
+              <label class="toggle-wrap"><input type="checkbox" id="autoRefresh" aria-describedby="auto-refresh-desc"> <span id="auto-refresh-desc">Auto-refresh every 15 seconds</span></label>
+              <button class="btn primary" id="checkAll" aria-label="Check all monitored devices">Check all now</button>
             </div>
           </div>
           <div class="card-block full">
             <div class="scroller">
-              <table><thead><tr><th>Device</th><th>IP</th><th>Type</th><th>Status</th><th>RTT</th><th>Last checked</th><th>History</th><th class="col-act"></th></tr></thead><tbody id="monitorBody"></tbody></table>
+              <table><thead><tr><th>Name</th><th>IP</th><th>Type</th><th>Status</th><th>RTT</th><th>Last checked</th><th>History</th><th class="col-act"></th></tr></thead><tbody id="monitorBody"></tbody></table>
             </div>
           </div>
-          <div id="historyPane"></div>
+          <div id="historyPane" aria-live="polite"></div>
         </section>
 
-        <section id="incidents" class="view">
+        <section id="incidents" class="view" aria-labelledby="incidents-heading">
           <div class="view-head">
-            <h2>Incidents &amp; Support Requests</h2>
+            <h2 id="incidents-heading">Incidents &amp; Support Requests</h2>
             <div class="head-actions">
-              <button class="btn primary" data-entity="issues">+ Log incident</button>
+              <button class="btn primary" data-entity="issues" aria-label="Log a new incident">+ Log incident</button>
             </div>
           </div>
           <div class="card-block full">
@@ -194,43 +195,44 @@
           </div>
         </section>
 
-        <section id="diagram" class="view">
+        <section id="diagram" class="view" aria-labelledby="diagram-heading">
           <div class="view-head">
-            <h2>Network Diagram Editor</h2>
+            <h2 id="diagram-heading">Network Diagram Editor</h2>
             <div class="head-actions">
-              <button class="btn ghost" id="diagImport">Import inventory</button>
-              <button class="btn ghost" id="diagLayout">Auto-layout</button>
-              <button class="btn primary" id="diagSave">Save diagram</button>
+              <button class="btn ghost" id="diagImport" aria-label="Import all devices into diagram">Import inventory</button>
+              <button class="btn ghost" id="diagLayout" aria-label="Auto-arrange nodes in a circle">Auto-layout</button>
+              <button class="btn primary" id="diagSave" aria-label="Save diagram to server">Save diagram</button>
             </div>
           </div>
-          <div class="diagram-toolbar">
+          <div class="diagram-toolbar" role="toolbar" aria-label="Diagram tools">
             <span class="diag-tag">Place:</span>
-            <button class="btn sm diag-add" data-type="router">Router</button>
-            <button class="btn sm diag-add" data-type="switch">Switch</button>
-            <button class="btn sm diag-add" data-type="server">Server</button>
-            <button class="btn sm diag-add" data-type="pc">PC</button>
-            <button class="btn sm diag-add" data-type="printer">Printer</button>
-            <button class="btn sm diag-add" data-type="cloud">Internet</button>
-            <span class="diag-sep"></span>
-            <button class="btn sm" id="diagAddZone">+ Add site</button>
-            <button class="btn sm" id="diagZoneRename" disabled>Rename site</button>
-            <span class="diag-sep"></span>
-            <button class="btn sm" id="diagConnect">Connect: off</button>
-            <button class="btn sm danger" id="diagDelete">Delete selected</button>
-            <span class="diag-sep"></span>
-            <select id="diagDeviceLink" class="minisel" title="Attach a node to a real device">
+            <button class="btn sm diag-add" data-type="router" aria-label="Place router node">Router</button>
+            <button class="btn sm diag-add" data-type="switch" aria-label="Place switch node">Switch</button>
+            <button class="btn sm diag-add" data-type="server" aria-label="Place server node">Server</button>
+            <button class="btn sm diag-add" data-type="pc" aria-label="Place PC node">PC</button>
+            <button class="btn sm diag-add" data-type="printer" aria-label="Place printer node">Printer</button>
+            <button class="btn sm diag-add" data-type="cloud" aria-label="Place internet node">Internet</button>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <button class="btn sm" id="diagAddZone" aria-label="Add a new site zone">+ Add site</button>
+            <button class="btn sm" id="diagZoneRename" disabled aria-label="Rename selected site">Rename site</button>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <button class="btn sm" id="diagConnect" aria-label="Connect two nodes">Connect: off</button>
+            <button class="btn sm danger" id="diagDelete" aria-label="Delete selected node or site">Delete selected</button>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <label for="diagDeviceLink" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Attach a node to a device</label>
+            <select id="diagDeviceLink" class="minisel" title="Attach a node to a real device" aria-label="Attach node to device">
               <option value="">Attach to device…</option>
             </select>
           </div>
           <div class="diagram-wrap">
-            <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas"></svg>
+            <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas — click to place nodes, drag to move, select two nodes then click Connect to link them"></svg>
             <div id="diagHint" class="diag-hint">Add <b>sites</b> (offices/rooms) first, then drop devices into them and connect them. Drag to move; drag a site's corner to resize it.</div>
           </div>
-          <div class="diagram-legend">
+          <div class="diagram-legend" aria-label="Diagram legend">
             <span class="leg leg-up">● UP</span>
             <span class="leg leg-down">● DOWN</span>
             <span class="leg leg-unknown">● Unknown/not linked</span>
-            <span class="diag-sep"></span>
+            <span class="diag-sep" aria-hidden="true"></span>
             <span class="leg leg-zone">▭ Site / office zone</span>
           </div>
         </section>
@@ -250,21 +252,21 @@
       <p class="muted">Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.</p>
       <div class="field">
         <label for="setupOrg">Organization name</label>
-        <input id="setupOrg" type="text" placeholder="e.g. Wolayita Zone Innovation and Technology Office" autocomplete="organization">
+        <input id="setupOrg" type="text" placeholder="e.g. Wolayita Zone Innovation and Technology Office" autocomplete="organization" required>
       </div>
       <label class="check"><input type="checkbox" id="setupDemo" checked> <span>Load a demonstration office network to explore every feature</span></label>
       <button class="btn primary full" id="setupStart">Start using the Suite</button>
     </div>
   </div>
 
-  <div id="modal" class="modal">
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-box">
-      <div class="modal-head"><h3 id="modalTitle"></h3><button class="modal-x" id="modalClose">✕</button></div>
-      <form id="modalForm"></form>
+      <div class="modal-head"><h3 id="modalTitle"></h3><button class="modal-x" id="modalClose" aria-label="Close dialog">✕</button></div>
+      <form id="modalForm" novalidate></form>
     </div>
   </div>
 
-  <div id="toasts" aria-live="polite"></div>
+  <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
   <script src="/js/app.js"></script>
 </body>

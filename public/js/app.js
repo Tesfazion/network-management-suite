@@ -1,4 +1,21 @@
+/**
+ * Network Management Suite — client-side application.
+ * Single-file vanilla JS SPA with hash-based routing, modal CRUD,
+ * live monitoring, search, and an SVG diagram editor.
+ */
+
+// ---- Utilities -------------------------------------------------------
+
+/** Query a single element by CSS selector. */
 const $ = (sel) => document.querySelector(sel);
+
+/**
+ * Create a DOM element with optional class and text/content.
+ * @param {string} tag - HTML tag name.
+ * @param {string} [cls] - Space-separated CSS classes.
+ * @param {string|Element} [txt] - Text content or child element.
+ * @returns {Element}
+ */
 const el = (tag, cls, txt) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -9,6 +26,14 @@ const el = (tag, cls, txt) => {
   return n;
 };
 
+/**
+ * Call the JSON API and return parsed data.
+ * Throws on non-2xx responses so callers can show a toast.
+ *
+ * @param {string} path - API path (e.g. '/api/rooms').
+ * @param {object} [opts] - fetch options.
+ * @returns {Promise<any>}
+ */
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
@@ -24,6 +49,11 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+/**
+ * Show a transient notification toast.
+ * @param {string} message - Text to display.
+ * @param {'ok'|'err'|'warn'} [type='ok'] - Visual variant.
+ */
 function toast(message, type = 'ok') {
   const t = el('div', 'toast ' + type);
   t.append(el('span', '', type === 'ok' ? '✓' : type === 'err' ? '✕' : '!'), el('span', '', message));
@@ -32,6 +62,11 @@ function toast(message, type = 'ok') {
   setTimeout(() => t.remove(), 3000);
 }
 
+/**
+ * Format an ISO-like datetime string for display.
+ * @param {string} s - Raw datetime from the API.
+ * @returns {string}
+ */
 const fmtDate = (s) => {
   if (!s) return '—';
   const d = new Date(s.replace(' ', 'T') + (s.includes('Z') ? '' : 'Z'));
@@ -39,6 +74,11 @@ const fmtDate = (s) => {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+/**
+ * Format an ISO-like datetime string with time for display.
+ * @param {string} s - Raw datetime from the API.
+ * @returns {string}
+ */
 const fmtTime = (s) => {
   if (!s) return '—';
   const d = new Date(s.replace(' ', 'T') + (s.includes('Z') ? '' : 'Z'));
@@ -47,6 +87,13 @@ const fmtTime = (s) => {
 };
 
 const pill = (kind, label) => el('span', 'pill ' + kind, label);
+
+/**
+ * Render an empty table row with a span across all columns.
+ * @param {number} colspan
+ * @param {string} message
+ * @returns {HTMLTableRowElement}
+ */
 const emptyRow = (colspan, message) => {
   const tr = el('tr', 'empty-row');
   const td = el('td', '', message);
@@ -56,8 +103,14 @@ const emptyRow = (colspan, message) => {
 };
 
 // ---------- Tabs / navigation ----------
+
+/** Name of the currently visible tab. */
 let currentTab = 'dashboard';
 
+/**
+ * Switch to a named tab and refresh its content.
+ * @param {'dashboard'|'infrastructure'|'ipvlan'|'monitoring'|'incidents'|'diagram'} name
+ */
 function goTab(name) {
   currentTab = name;
   document.querySelectorAll('.nav-item').forEach((n) => n.classList.toggle('active', n.dataset.tab === name));
@@ -77,6 +130,10 @@ $('#content').addEventListener('click', (e) => {
   if (link) goTab(link.dataset.goto);
 });
 
+/**
+ * Dispatch tab content loading.
+ * @param {string} name
+ */
 function loadTab(name) {
   if (name === 'dashboard') loadDashboard();
   else if (name === 'infrastructure') loadInfrastructure();
@@ -87,6 +144,10 @@ function loadTab(name) {
 }
 
 // ---------- Dashboard ----------
+
+/**
+ * Fetch dashboard aggregates, conflict alerts, uptime, and recent issues.
+ */
 async function loadDashboard() {
   const d = await api('/api/dashboard');
   const conflicts = await api('/api/conflicts');
@@ -145,6 +206,11 @@ async function loadDashboard() {
   $('#dashIssues').replaceChildren(box);
 }
 
+/**
+ * Build conflict alert blocks for the dashboard and IP & VLAN views.
+ * @param {object} conflicts - Conflict payload from /api/conflicts.
+ * @returns {Element[]}
+ */
 function conflictsBlock(conflicts) {
   const parts = [];
   if (conflicts.duplicateIps.length) {
@@ -168,15 +234,18 @@ function conflictsBlock(conflicts) {
 }
 
 // ---------- Infrastructure ----------
-let roomsCache = [];
-let outletsCache = [];
-let panelsCache = [];
+/** @type {{rooms: Array, outlets: Array, panels: Array}} */
+let roomsCache = { rooms: [], outlets: [], panels: [] };
 
+/**
+ * Load all infrastructure tables and render them.
+ * Caches data for modal dropdowns.
+ */
 async function loadInfrastructure() {
   const [rooms, outlets, panels, cables] = await Promise.all([
     api('/api/rooms'), api('/api/outlets'), api('/api/patchpanels'), api('/api/cables'),
   ]);
-  roomsCache = rooms; panelsCache = panels; outletsCache = outlets;
+  roomsCache = { rooms, panels, outlets };
 
   $('#roomsBody').replaceChildren(...(rooms.length
     ? rooms.map((r) => {
@@ -233,6 +302,11 @@ async function loadInfrastructure() {
     : [emptyRow(10, 'No cable runs logged yet. Wire it up!')]));
 }
 
+/**
+ * Create a small delete button wired to an async action.
+ * @param {() => Promise<void>} run
+ * @returns {HTMLButtonElement}
+ */
 function delBtn(run) {
   const b = el('button', 'btn sm danger', 'Delete');
   b.onclick = async () => {
@@ -246,11 +320,15 @@ const testPill = (v) => v === 'Pass' ? pill('pass', 'Pass') : v === 'Fail' ? pil
 const statusPill = (v) => v === 'Active' ? pill('active', 'Active') : pill('inactive', v || '—');
 
 // ---------- IP & VLAN ----------
-let vlansCache = [];
+/** @type {{rooms: Array, outlets: Array, panels: Array, vlans: Array}} */
+let vlansCache = { rooms: [], outlets: [], panels: [], vlans: [] };
 
+/**
+ * Load VLANs, devices, and IP conflicts. Render conflict alerts and both tables.
+ */
 async function loadIpVlan() {
   const [vlans, devices, conflicts] = await Promise.all([api('/api/vlans'), api('/api/devices'), api('/api/conflicts')]);
-  vlansCache = vlans;
+  vlansCache.vlans = vlans;
 
   $('#ipvlanConflicts').replaceChildren(...conflictsBlock(conflicts));
   if (conflicts.duplicateIps.length === 0 && conflicts.outsideSubnet.length === 0 && conflicts.gatewayConflicts.length === 0) {
@@ -291,6 +369,7 @@ async function loadIpVlan() {
         toggle.type = 'checkbox';
         toggle.checked = !!d.monitored;
         toggle.title = 'Toggle monitoring';
+        toggle.setAttribute('aria-label', `Monitor ${d.name}`);
         toggle.onchange = async () => {
           try {
             await api('/api/devices/' + d.id, { method: 'PATCH', body: JSON.stringify({ monitored: toggle.checked ? 1 : 0 }) });
@@ -309,6 +388,10 @@ async function loadIpVlan() {
 // ---------- Monitoring ----------
 let refreshTimer = null;
 
+/**
+ * Load the monitoring status table.
+ * Shows UP/DOWN, RTT, and provides per-device check + history buttons.
+ */
 async function loadMonitoring() {
   const status = await api('/api/monitor/status');
   if (status.length === 0) {
@@ -335,6 +418,11 @@ async function loadMonitoring() {
   }));
 }
 
+/**
+ * Run a single ICMP check and show the result.
+ * @param {number} id - Device ID.
+ * @param {HTMLButtonElement} btn - Button to show spinner on.
+ */
 async function doCheck(id, btn) {
   const orig = btn.textContent;
   btn.disabled = true;
@@ -350,6 +438,9 @@ async function doCheck(id, btn) {
   btn.textContent = orig;
 }
 
+/**
+ * Check all monitored/infrastructure devices at once.
+ */
 async function checkAll() {
   const btn = $('#checkAll');
   btn.disabled = true;
@@ -379,6 +470,10 @@ $('#autoRefresh').addEventListener('change', (e) => {
   }
 });
 
+/**
+ * Show monitoring history for a device below the table.
+ * @param {{id: number, name: string, ip: string}} s
+ */
 async function showHistory(s) {
   const hist = await api('/api/monitor/history/' + s.id);
   const pane = $('#historyPane');
@@ -403,6 +498,10 @@ async function showHistory(s) {
 }
 
 // ---------- Incidents ----------
+
+/**
+ * Load issues, update the nav badge, and render the table.
+ */
 async function loadIncidents() {
   const issues = await api('/api/issues');
   const badge = $('#openIssueBadge');
@@ -435,6 +534,11 @@ const statusPillIssue = (v) => {
 };
 const sevPill = (v) => pill((v || 'Medium').toLowerCase(), v || '—');
 
+/**
+ * Build a button that advances an issue to the next workflow stage.
+ * @param {{id: number, status: string}} issue
+ * @returns {HTMLButtonElement|HTMLSpanElement}
+ */
 function advanceBtn(issue) {
   const next = issue.status === 'Open' ? 'In Progress' : issue.status === 'In Progress' ? 'Resolved' : null;
   if (!next) return el('span', 'muted', '');
@@ -451,6 +555,7 @@ function advanceBtn(issue) {
 
 // ---------- Search ----------
 let searchTimer = null;
+
 $('#searchInput').addEventListener('input', (e) => {
   clearTimeout(searchTimer);
   const q = e.target.value.trim();
@@ -462,6 +567,10 @@ $('#searchInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('#searchResults').hidden = true;
 });
 
+/**
+ * Run a global search across all entities and render grouped results.
+ * @param {string} q
+ */
 async function search(q) {
   const res = await api('/api/search?q=' + encodeURIComponent(q));
   const groups = [];
@@ -475,7 +584,7 @@ async function search(q) {
   const box = $('#searchResults');
   box.replaceChildren();
   if (groups.length === 0) {
-    box.append(el('div', 'sr-empty', `No results for “${q}”`));
+    box.append(el('div', 'sr-empty', `No results for \u201c${q}\u201d`));
   } else {
     groups.forEach(([label, tab, items]) => {
       box.append(el('div', 'sr-group', label));
@@ -487,6 +596,8 @@ async function search(q) {
       });
     });
   }
+  box.hidden = false;
+}
   box.hidden = false;
 }
 
@@ -503,7 +614,7 @@ const forms = {
     title: 'Add wall outlet', post: '/api/outlets',
     fields: [
       ['label', 'text', 'Label (e.g. A-101)', true], ['location', 'text', 'Location'],
-      ['room_id', 'select', 'Room', false, () => roomsCache.map((r) => ({ v: r.id, l: r.name }))],
+      ['room_id', 'select', 'Room', false, () => roomsCache.rooms.map((r) => ({ v: r.id, l: r.name }))],
     ],
   },
   patchpanels: {
@@ -517,8 +628,8 @@ const forms = {
     title: 'Add cable run', post: '/api/cables',
     fields: [
       ['cable_id', 'text', 'Cable ID', true], ['patch_port', 'text', 'Patch panel port'],
-      ['outlet_id', 'select', 'Wall outlet', false, () => outletsCache.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }))],
-      ['patch_panel_id', 'select', 'Patch panel', false, () => panelsCache.map((p) => ({ v: p.id, l: `${p.name} · ${p.location || ''}` }))],
+      ['outlet_id', 'select', 'Wall outlet', false, () => roomsCache.outlets.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }))],
+      ['patch_panel_id', 'select', 'Patch panel', false, () => roomsCache.panels.map((p) => ({ v: p.id, l: `${p.name} · ${p.location || ''}` }))],
       ['length_m', 'number', 'Length (m)'],
       ['cable_type', 'select', 'Cable type', false, () => [{ v: 'Cat5e', l: 'Cat5e' }, { v: 'Cat6', l: 'Cat6' }, { v: 'Cat6a', l: 'Cat6a' }]],
       ['test_result', 'select', 'Test result', false, () => [{ v: 'Pending', l: 'Pending' }, { v: 'Pass', l: 'Pass' }, { v: 'Fail', l: 'Fail' }]],
@@ -542,7 +653,7 @@ const forms = {
         { v: 'Router', l: 'Router' }, { v: 'Switch', l: 'Switch' },
         { v: 'Server', l: 'Server' }, { v: 'Workstation', l: 'Workstation' },
       ]],
-      ['vlan_id', 'select', 'VLAN', false, () => vlansCache.map((v) => ({ v: v.id, l: `VLAN ${v.vlan_id} ${v.name}` }))],
+      ['vlan_id', 'select', 'VLAN', false, () => vlansCache.vlans.map((v) => ({ v: v.id, l: `VLAN ${v.vlan_id} ${v.name}` }))],
       ['mac', 'text', 'MAC address'], ['location', 'text', 'Location'],
       ['monitored', 'select', 'Monitor', false, () => [{ v: 1, l: 'Yes' }, { v: 0, l: 'No' }]],
     ],
@@ -551,7 +662,7 @@ const forms = {
     title: 'Log incident', post: '/api/issues',
     fields: [
       ['title', 'text', 'Short summary', true, null, 'full'],
-      ['description', 'textarea', 'Details (symptoms, troubleshooting…)', false, null, 'full'],
+      ['description', 'textarea', 'Details (symptoms, troubleshooting...)', false, null, 'full'],
       ['severity', 'select', 'Severity', false, () => [{ v: 'Low', l: 'Low' }, { v: 'Medium', l: 'Medium' }, { v: 'High', l: 'High' }]],
       ['status', 'select', 'Status', false, () => [{ v: 'Open', l: 'Open' }, { v: 'In Progress', l: 'In Progress' }, { v: 'Resolved', l: 'Resolved' }]],
       ['device_id', 'select', 'Related device (optional)', false, null],
@@ -561,14 +672,22 @@ const forms = {
   },
 };
 
+/**
+ * Pre-fetch data needed for modal dropdowns.
+ */
 async function warmCaches() {
   const [rooms, outlets, panels, vlans, devices] = await Promise.all([
     api('/api/rooms'), api('/api/outlets'), api('/api/patchpanels'), api('/api/vlans'), api('/api/devices'),
   ]);
-  roomsCache = rooms; panelsCache = panels; vlansCache = vlans; outletsCache = outlets;
+  roomsCache = { rooms, panels, outlets, vlans };
   window.__devicesCache = devices;
 }
 
+/**
+ * Render a single form field inside the modal.
+ * @param {HTMLFormElement} form
+ * @param {Array} f - Field spec: [name, type, label, required, options, span]
+ */
 function addField(form, [name, type, label, required, options, span]) {
   const wrap = el('div', 'field' + (span ? ' ' + span : ''));
   const lab = el('label', '', label);
@@ -593,6 +712,10 @@ function addField(form, [name, type, label, required, options, span]) {
   form.append(wrap);
 }
 
+/**
+ * Open the create-modal for the given entity.
+ * @param {'rooms'|'outlets'|'patchpanels'|'cables'|'vlans'|'devices'|'issues'} entity
+ */
 function openModal(entity) {
   const spec = forms[entity];
   const form = $('#modalForm');
@@ -604,7 +727,7 @@ function openModal(entity) {
       f[4] = () => (window.__devicesCache || []).map((d) => ({ v: d.id, l: `${d.name} (${d.ip || 'no IP'})` }));
     }
     if (f[0] === 'outlet_id') {
-      f[4] = () => outletsCache.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }));
+      f[4] = () => roomsCache.outlets.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }));
     }
     addField(form, f);
   });
@@ -653,6 +776,9 @@ $('#content').addEventListener('click', (e) => {
   if (add) openModal(add.dataset.entity);
 });
 
+/**
+ * Re-run the current tab's loader.
+ */
 function reloadCurrent() {
   loadTab(currentTab);
 }
@@ -674,8 +800,10 @@ $('#content').addEventListener('click', (e) => {
 // ---------- Diagram editor ----------
 const DIAG_W = 1200;
 const DIAG_H = 680;
+/** @type {{nodes: Array, links: Array, zones: Array}} */
 const diag = { nodes: [], links: [], zones: [] };
-let diagStatus = {};               // device_id -> 'up' | 'down'
+/** @type {Record<number, string>} device_id -> 'up' | 'down' */
+let diagStatus = {};
 let diagSel = null;                // selected node id
 let diagSelZone = null;            // selected zone/site id
 let diagPlace = null;              // active type to place (or null)
@@ -684,6 +812,10 @@ let diagSaveTimer = null;
 
 const DEFAULT_LABEL = { router: 'Router', switch: 'Switch', server: 'Server', pc: 'PC', printer: 'Printer', cloud: 'Internet' };
 
+/**
+ * Load diagram data, device inventory, and monitoring status.
+ * Renders the SVG canvas and populates the device-link dropdown.
+ */
 async function loadDiagram() {
   const [saved, devices, statuses] = await Promise.all([
     api('/api/diagram'), api('/api/devices'), api('/api/monitor/status'),
@@ -703,10 +835,32 @@ async function loadDiagram() {
   renderDiagram();
 }
 
+/** Generate a unique node identifier. */
 function uid() { return 'n' + Math.random().toString(36).slice(2, 9); }
 
+/** Find a node by its id. */
 function nodeById(id) { return diag.nodes.find((n) => n.id === id); }
 
+/**
+ * Determine which zone (if any) contains the given canvas coordinates.
+ * @param {number} x
+ * @param {number} y
+ * @returns {string|null}
+ */
+function zoneAt(x, y) {
+  const z = diag.zones.find((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
+  return z ? z.id : null;
+}
+
+function selectNode(id) { diagSel = id; diagSelZone = null; }
+function selectZone(id) { diagSelZone = id; diagSel = null; }
+
+/**
+ * Place a new device node on the canvas at the given coordinates.
+ * @param {'router'|'switch'|'server'|'pc'|'printer'|'cloud'} type
+ * @param {number} x
+ * @param {number} y
+ */
 function placeNode(type, x, y) {
   const count = diag.nodes.filter((n) => n.type === type).length;
   const n = { id: uid(), type, label: (DEFAULT_LABEL[type] || type) + (count ? '-' + (count + 1) : ''), x, y, device_id: null, zone: zoneAt(x, y) };
@@ -716,14 +870,9 @@ function placeNode(type, x, y) {
   touchDiagram();
 }
 
-function zoneAt(x, y) {
-  const z = diag.zones.find((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
-  return z ? z.id : null;
-}
-
-function selectNode(id) { diagSel = id; diagSelZone = null; }
-function selectZone(id) { diagSelZone = id; diagSel = null; }
-
+/**
+ * Re-render the entire diagram SVG from the current `diag` state.
+ */
 function renderDiagram() {
   const svg = $('#diagCanvas');
   svg.replaceChildren(diagDefs(), diagBgRect());
@@ -766,6 +915,11 @@ function diagBgRect() {
 
 const ZONE_COUNTS = { router: 'Router', switch: 'Switch', server: 'Server', pc: 'PC', printer: 'Printer', cloud: 'Internet' };
 
+/**
+ * Build a human-readable count string for a zone, e.g. "2 Routers · 1 Server".
+ * @param {{id: string, nodes: Array}} z
+ * @returns {string}
+ */
 function zoneCountText(z) {
   const counts = {};
   diag.nodes.forEach((n) => {
@@ -777,6 +931,11 @@ function zoneCountText(z) {
   return Object.entries(counts).map(([k, v]) => `${v} ${plural(k, v)}`).join(' · ');
 }
 
+/**
+ * Build the SVG group for a zone (site/office rectangle).
+ * @param {{id: string, label: string, x: number, y: number, w: number, h: number}} z
+ * @returns {SVGGElement}
+ */
 function zoneGroup(z) {
   const svgNS = 'http://www.w3.org/2000/svg';
   const mk = (tag, attrs, cls) => {
@@ -875,6 +1034,10 @@ function addZone() {
   renameZone(z);
 }
 
+/**
+ * Prompt the user to rename a zone label.
+ * @param {{id: string, label: string}} z
+ */
 function renameZone(z) {
   if (!z) return;
   const name = prompt('Site / office name (e.g. Admin Office):', z.label || '');
@@ -885,6 +1048,11 @@ function renameZone(z) {
   }
 }
 
+/**
+ * Build the SVG group for a single node (device shape + label + hit area).
+ * @param {{id: string, type: string, label: string, x: number, y: number, device_id: number|null}} n
+ * @returns {SVGGElement}
+ */
 function nodeGroup(n) {
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
@@ -926,6 +1094,11 @@ function nodeGroup(n) {
   return g;
 }
 
+/**
+ * Draw the vector icon for a device type into the provided SVG group.
+ * @param {SVGGElement} shape
+ * @param {'router'|'switch'|'server'|'pc'|'printer'|'cloud'} type
+ */
 function drawShape(shape, type) {
   const svg = 'http://www.w3.org/2000/svg';
   const mk = (tag, attrs) => {
@@ -979,7 +1152,6 @@ function pickNode(n, e) {
     renderDiagram();
     return;
   }
-  diagSel = n.id;
   selectNode(n.id);
   renderDiagram();
   startDrag(n, e);
@@ -1136,6 +1308,9 @@ $('#diagLayout').addEventListener('click', () => {
   touchDiagram();
 });
 
+/**
+ * Debounce diagram saves to avoid excessive PUT requests.
+ */
 function touchDiagram() {
   clearTimeout(diagSaveTimer);
   diagSaveTimer = setTimeout(async () => {
@@ -1156,12 +1331,20 @@ $('#diagSave').addEventListener('click', async () => {
 let setupMode = 'welcome';   // 'welcome' | 'settings'
 let orgSettings = { org_name: 'Network Management Suite' };
 
+/**
+ * Apply the organization name to the sidebar and browser title.
+ * @param {string} name
+ */
 function applyOrgBranding(name) {
   const org = name || 'Network Management Suite';
   $('#orgName').textContent = org;
   document.title = org + ' — Network Management Suite';
 }
 
+/**
+ * Show or hide the first-run setup overlay.
+ * @param {'welcome'|'settings'} mode
+ */
 function showSetup(mode) {
   setupMode = mode;
   const welcome = mode === 'welcome';
@@ -1178,6 +1361,9 @@ function showSetup(mode) {
   $('#setupOrg').focus();
 }
 
+/**
+ * Submit the setup form (org name + optional demo data).
+ */
 async function saveSetup() {
   const org = $('#setupOrg').value.trim() || 'Network Management Suite';
   const demo = setupMode === 'welcome' && $('#setupDemo').checked;

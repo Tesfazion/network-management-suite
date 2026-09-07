@@ -1,8 +1,15 @@
 const Database = require('better-sqlite3');
-const path = require('path');
+const config = require('./config');
 
+/**
+ * Create (or open) the SQLite database and ensure the schema exists.
+ * WAL mode and foreign keys are enabled for safety and concurrency.
+ *
+ * @param {string} [location] - Override path for the database file.
+ * @returns {Database} A connected better-sqlite3 instance.
+ */
 function createDb(location) {
-  const dbPath = location || process.env.DATABASE_PATH || path.join(__dirname, '..', 'network.db');
+  const dbPath = location || config.dbPath;
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
@@ -90,7 +97,7 @@ CREATE TABLE IF NOT EXISTS monitor_history (
 
 CREATE TABLE IF NOT EXISTS diagram (
   id INTEGER PRIMARY KEY CHECK (id = 1),
-  data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[]}',
+  data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[],"zones":[]}',
   updated_at TEXT DEFAULT (datetime('now'))
 );
 

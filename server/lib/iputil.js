@@ -1,3 +1,6 @@
+/**
+ * IPv4 utilities: parsing, range math, and conflict detection.
+ */
 function ipToInt(ip) {
   if (!ip) return null;
   const parts = ip.split('.');
@@ -5,6 +8,10 @@ function ipToInt(ip) {
   const nums = parts.map(Number);
   if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
   return ((nums[0] << 24) | (nums[1] << 16) | (nums[2] << 8) | nums[3]) >>> 0;
+}
+
+function isValidIpv4(ip) {
+  return ipToInt(ip) !== null;
 }
 
 function ipFromInt(int) {
@@ -33,12 +40,25 @@ function inRange(ipInt, range) {
   return ipInt >= Math.min(start, end) && ipInt <= Math.max(start, end);
 }
 
+function isRouterLike(device) {
+  return /router/i.test(device.device_type || '');
+}
+
+/**
+ * Scan all devices for IP address conflicts:
+ * - duplicate IPs across devices
+ * - IPs outside their assigned VLAN subnet
+ * - non-router devices squatting on a VLAN gateway
+ */
 function ipConflicts(db) {
   const devices = db.prepare('SELECT * FROM devices').all();
   const vlanById = new Map(db.prepare('SELECT * FROM vlans').all().map((v) => [v.id, v]));
 
   const seen = new Map();
   const duplicates = [];
+  const warnings = [];
+  const gatewayWarnings = [];
+
   for (const d of devices) {
     if (!d.ip) continue;
     if (seen.has(d.ip)) {
@@ -46,27 +66,15 @@ function ipConflicts(db) {
     } else {
       seen.set(d.ip, d);
     }
-  }
 
-  const warnings = [];
-  for (const d of devices) {
-    if (!d.ip) continue;
     const vlan = vlanById.get(d.vlan_id);
     if (!vlan) continue;
     const range = cidrRange(vlan.subnet);
-    if (!range) continue;
-    if (ipToInt(d.ip) !== null && !inRange(ipToInt(d.ip), range)) {
+    if (range && isValidIpv4(d.ip) && !inRange(ipToInt(d.ip), range)) {
       warnings.push({ device: d, vlan });
     }
-  }
 
-  const gatewayWarnings = [];
-  for (const d of devices) {
-    if (!d.ip || d.ip === '127.0.0.1') continue;
-    if (d.device_type && /router/i.test(d.device_type)) continue;
-    const vlan = vlanById.get(d.vlan_id);
-    if (!vlan || !vlan.gateway) continue;
-    if (d.ip === vlan.gateway) {
+    if (d.ip !== '127.0.0.1' && !isRouterLike(d) && vlan && vlan.gateway && d.ip === vlan.gateway) {
       gatewayWarnings.push({ device: d, vlan });
     }
   }
@@ -74,4 +82,4 @@ function ipConflicts(db) {
   return { duplicates, warnings, gatewayWarnings };
 }
 
-module.exports = { ipConflicts, ipToInt, cidrRange };
+module.exports = { ipConflicts, ipToInt, ipFromInt, cidrRange, isValidIpv4 };
