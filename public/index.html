@@ -32,6 +32,9 @@
         <button class="nav-item" data-tab="monitoring">
           <span class="nav-ico">●</span> Monitoring
         </button>
+        <button class="nav-item" data-tab="diagram">
+          <span class="nav-ico">🗀</span> Diagram
+        </button>
         <button class="nav-item" data-tab="incidents">
           <span class="nav-ico">⚠</span> Incidents
           <span class="nav-badge" id="openIssueBadge" hidden></span>
@@ -186,6 +189,42 @@
             <div class="scroller">
               <table><thead><tr><th>Status</th><th>Title</th><th>Severity</th><th>Related device</th><th>Outlet</th><th>Reporter</th><th>Created</th><th class="col-act"></th></tr></thead><tbody id="issuesBody"></tbody></table>
             </div>
+          </div>
+        </section>
+
+        <section id="diagram" class="view">
+          <div class="view-head">
+            <h2>Network Diagram Editor</h2>
+            <div class="head-actions">
+              <button class="btn ghost" id="diagImport">Import inventory</button>
+              <button class="btn ghost" id="diagLayout">Auto-layout</button>
+              <button class="btn primary" id="diagSave">Save diagram</button>
+            </div>
+          </div>
+          <div class="diagram-toolbar">
+            <span class="diag-tag">Place:</span>
+            <button class="btn sm diag-add" data-type="router">Router</button>
+            <button class="btn sm diag-add" data-type="switch">Switch</button>
+            <button class="btn sm diag-add" data-type="server">Server</button>
+            <button class="btn sm diag-add" data-type="pc">PC</button>
+            <button class="btn sm diag-add" data-type="printer">Printer</button>
+            <button class="btn sm diag-add" data-type="cloud">Internet</button>
+            <span class="diag-sep"></span>
+            <button class="btn sm" id="diagConnect">Connect: off</button>
+            <button class="btn sm danger" id="diagDelete">Delete selected</button>
+            <span class="diag-sep"></span>
+            <select id="diagDeviceLink" class="minisel" title="Attach a node to a real device">
+              <option value="">Attach to device…</option>
+            </select>
+          </div>
+          <div class="diagram-wrap">
+            <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas"></svg>
+            <div id="diagHint" class="diag-hint">Click a device button above to add it, drag to move, click two nodes to connect, attach nodes to real devices for live status.</div>
+          </div>
+          <div class="diagram-legend">
+            <span class="leg leg-up">● UP</span>
+            <span class="leg leg-down">● DOWN</span>
+            <span class="leg leg-unknown">● Unknown/not linked</span>
           </div>
         </section>
       </main>

@@ -1,7 +1,7 @@
 const db = require('./db');
 
 db.prepare('PRAGMA foreign_keys = ON').run();
-for (const t of ['monitor_history', 'issues', 'cables', 'devices', 'outlets', 'patch_panels', 'vlans', 'rooms']) {
+for (const t of ['diagram', 'monitor_history', 'issues', 'cables', 'devices', 'outlets', 'patch_panels', 'vlans', 'rooms']) {
   db.prepare(`DELETE FROM ${t}`).run();
 }
 
@@ -45,8 +45,8 @@ const dIctPc = dev.run('ICT-PC-01', '192.168.20.10', 'Workstation', vIct, '00:1A
 const dFile = dev.run('FileServer', '192.168.10.50', 'Server', vAdmin, '00:1A:2B:3C:4D:30', 'Server Room', 1).lastInsertRowid;
 const dWeb = dev.run('WEB-SRV-01', '192.168.10.60', 'Server', vAdmin, '00:1A:2B:3C:4D:31', 'Server Room', 1).lastInsertRowid;
 const dPrinter1 = dev.run('Printer-01', '192.168.20.25', 'Workstation', vIct, '00:1A:2B:3C:4D:40', 'ICT Office', 0).lastInsertRowid;
-dev.run('Printer-02', '192.168.20.25', 'Workstation', vIct, '00:1A:2B:3C:4D:41', 'ICT Office', 0);
-dev.run('HR-PC-01', '192.168.30.10', 'Workstation', vAdmin, '00:1A:2B:3C:4D:50', 'Admin Office', 0);
+const dPrinter2 = dev.run('Printer-02', '192.168.20.25', 'Workstation', vIct, '00:1A:2B:3C:4D:41', 'ICT Office', 0).lastInsertRowid;
+const dHrPc = dev.run('HR-PC-01', '192.168.30.10', 'Workstation', vAdmin, '00:1A:2B:3C:4D:50', 'Admin Office', 0).lastInsertRowid;
 
 const issue = db.prepare(`
   INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter)
@@ -65,4 +65,26 @@ issue.run(
   'Low', 'Resolved', dPrinter1, null, 'Helpdesk');
 
 try { db.prepare('COMMIT').run(); } catch (e) {}
+
+const byLabel = {
+  Router: dRouter, CoreSwitch: dCoreSwitch, AccessSwitchA: dAccess,
+  'AdminPC-01': dAdminPc, 'ICT-PC-01': dIctPc, FileServer: dFile, 'WEB-SRV-01': dWeb,
+  'Printer-01': dPrinter1, 'Printer-02': dPrinter2, 'HR-PC-01': dHrPc,
+};
+const DEV_LAYOUT = [
+  ['Router', 'router', 420, 140], ['AccessSwitchA', 'switch', 750, 140],
+  ['FileServer', 'server', 250, 260], ['WEB-SRV-01', 'server', 920, 260],
+  ['AdminPC-01', 'pc', 200, 470], ['ICT-PC-01', 'pc', 380, 560],
+  ['HR-PC-01', 'pc', 620, 590], ['Printer-01', 'printer', 850, 560],
+  ['Printer-02', 'printer', 1000, 470],
+];
+const nodes = [{ id: 'core', type: 'switch', label: 'CoreSwitch', x: 590, y: 350, device_id: dCoreSwitch }];
+const links = [];
+DEV_LAYOUT.forEach(([label, type, x, y], i) => {
+  nodes.push({ id: 'n' + i, type, label, x, y, device_id: byLabel[label] });
+  links.push({ from: 'core', to: 'n' + i });
+});
+db.prepare(`INSERT INTO diagram (id, data, updated_at) VALUES (1, ?, datetime('now'))`)
+  .run(JSON.stringify({ nodes, links }));
+
 console.log('Seeded sample data successfully.');

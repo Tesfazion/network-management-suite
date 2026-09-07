@@ -49,7 +49,7 @@ The **Network Management Suite** is a lightweight, self-hosted web application t
 It is a full-stack application you run on a single machine:
 
 - **Backend** — Node.js + Express exposing a JSON REST API, backed by a **SQLite** file database (zero external dependencies, one small file).
-- **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with **five modules**: **Dashboard**, **Infrastructure**, **IP & VLAN**, **Monitoring**, and **Incidents**.
+- **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with **six** views: **Dashboard**, **Infrastructure**, **IP & VLAN**, **Monitoring**, **Incidents**, and a visual **Network Diagram** editor.
 
 ---
 
@@ -161,6 +161,17 @@ The Suite actively audits its own data:
 - **Gateway squatting** — a non-router device using its VLAN's gateway address.
 - These are surfaced as alert banners on the Dashboard and IP & VLAN views, and counted on the dashboard.
 
+### Module 6 — Network Diagram editor (visual canvas)
+
+A lightweight, Packet-Tracer-style drawing board that mirrors the documented network *visually*:
+
+- **Palette** — place Router, Switch, Server, PC, Printer, and Internet/cloud icons directly on the canvas. (Inspired by Cisco Packet Tracer's drag-and-drop layout.)
+- **Drag, select, delete** — move nodes around with the pointer, select to highlight, press Delete or the toolbar button to remove.
+- **Links** — "Connect" mode draws lines between two icons, exactly like cabling between devices.
+- **Live status coloring** — attach any node to a real device from the inventory; the node turns **green (UP)**, **red (DOWN)**, or **grey (not checked)** based on the latest monitoring ping.
+- **Import inventory** — one click rebuilds the whole canvas from the device database; "Auto-layout" arranges everything in a ring around the core switch.
+- **Auto-save** — every change is saved to the database automatically (debounced), so the diagram survives refresh.
+
 ---
 
 ## A real-world walkthrough
@@ -214,6 +225,11 @@ The Suite actively audits its own data:
 - Severity (Low/Medium/High) and status workflow (Open → In Progress → Resolved).
 - Links to the affected **device and/or outlet**, reporter attribution, resolution timestamps.
 - Open-issue counter + recent-incidents panel on the dashboard.
+
+### Visual Diagram Editor
+- Packet-Tracer-style icon palette (Router / Switch / Server / PC / Printer / Cloud), drag to move, click to connect.
+- **Live health coloring** — linked nodes turn green/red based on monitoring status.
+- **Import from inventory** + auto-layout in a ring around the core switch; automatic debounced saving.
 
 ### Search, Export & UX
 - **Global search** across devices, cables, outlets, rooms, VLANs, and incidents.
@@ -269,6 +285,7 @@ monitor_history n───1 devices   (device_id, status, rtt_ms, checked_at)
 | `devices` | Hardware + IP inventory | name, ip, device_type, **vlan_id**, mac, location, monitored |
 | `issues` | Support incidents (workflow log) | title, severity, status, **device_id**, **outlet_id**, reporter, resolved_at |
 | `monitor_history` | Ping results (append-only) | **device_id**, status, rtt_ms, checked_at |
+| `diagram` | One-row persisted canvas | data (JSON: `{nodes, links, device_id}`), updated_at |
 
 Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets while cable runs **survive** with a nulled outlet reference (`ON DELETE SET NULL`), preserving the cabling record. Incidents keep their text if a linked device is removed. `monitor_history` is append-only — it never overwrites, so trends stay visible.
 
@@ -451,6 +468,12 @@ All endpoints return JSON and live under `http://localhost:8080/api`.
 | GET    | `/api/conflicts` | Duplicate IPs, out-of-subnet devices, gateway squatting |
 | GET    | `/api/search?q=` | Global search across all entities                       |
 
+### Diagram
+| Method | Path            | Description                                             |
+|--------|-----------------|---------------------------------------------------------|
+| GET    | `/api/diagram`  | Load the saved canvas state `{ nodes, links }`          |
+| PUT    | `/api/diagram`  | Persist the canvas (nodes: id/type/label/x/y/device_id) |
+
 ### Exports
 | Method | Path                        | Description                       |
 |--------|-----------------------------|-----------------------------------|
@@ -501,6 +524,7 @@ Monitoring uses the operating system's `ping` command — the same tool a techni
 | VLANs         | 10 Admin (192.168.10.0/24), 20 ICT_Networking (192.168.20.0/24), 99 Infrastructure (192.168.99.0/24) |
 | Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, **WEB-SRV-01**, FileServer, Printer-01, **Printer-02**, HR-PC-01 |
 | Issues        | High-file-server-down (Open), Medium-slow-internet (In Progress), Low-printer-paper (Resolved) |
+| Diagram       | 10 typed icons (switch/router/server/pc/printer) pre-arranged in a ring around CoreSwitch, all linked to real devices |
 
 The seed *deliberately* includes two live problems so the audit feature is immediately demonstrable:
 

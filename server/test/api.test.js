@@ -163,3 +163,21 @@ test('CSV exports return well-formed headers', async () => {
   const t2 = await r2.text();
   assert.match(t2.split('\n')[0], /Name.*IP.*VLAN/);
 });
+
+test('diagram: empty by default, persists nodes and links', async () => {
+  const empty = await fetch(base + '/diagram').then((r) => r.json());
+  assert.deepStrictEqual(empty, { nodes: [], links: [] });
+
+  const put = await fetch(base + '/diagram', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nodes: [{ id: 'a', type: 'router', label: 'R', x: 10, y: 20, device_id: null }],
+      links: [],
+    }),
+  });
+  assert.strictEqual(put.status, 200);
+
+  const back = await fetch(base + '/diagram').then((r) => r.json());
+  assert.strictEqual(back.nodes[0].type, 'router');
+  assert.strictEqual(back.nodes[0].x, 10);
+});

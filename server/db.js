@@ -87,6 +87,12 @@ CREATE TABLE IF NOT EXISTS monitor_history (
   rtt_ms REAL,
   checked_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS diagram (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[]}',
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
   return db;

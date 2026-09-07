@@ -242,6 +242,36 @@ app.delete('/api/issues/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Diagram (visual editor canvas) ----------
+const DIAGRAM_DEFAULT = { nodes: [], links: [] };
+
+function getDiagram() {
+  const row = db.prepare('SELECT data FROM diagram WHERE id=1').get();
+  if (!row) return DIAGRAM_DEFAULT;
+  try { return JSON.parse(row.data); } catch { return DIAGRAM_DEFAULT; }
+}
+
+app.get('/api/diagram', (req, res) => res.json(getDiagram()));
+
+app.put('/api/diagram', (req, res) => {
+  const body = req.body || {};
+  const nodes = (Array.isArray(body.nodes) ? body.nodes : []).map((n) => ({
+    id: String(n.id ?? ''),
+    type: String(n.type || 'router'),
+    label: String(n.label || ''),
+    x: Math.max(0, Math.round(Number(n.x) || 0)),
+    y: Math.max(0, Math.round(Number(n.y) || 0)),
+    device_id: n.device_id != null && n.device_id !== '' ? Number(n.device_id) : null,
+  }));
+  const links = (Array.isArray(body.links) ? body.links : []).map((l) => ({
+    from: String(l.from ?? ''), to: String(l.to ?? ''),
+  })).filter((l) => l.from && l.to);
+  db.prepare(`INSERT INTO diagram (id, data, updated_at) VALUES (1, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at`)
+    .run(JSON.stringify({ nodes, links }));
+  res.json({ ok: true, nodes: nodes.length, links: links.length });
+});
+
 // ---------- CSV export ----------
 function toCsv(rows, headers) {
   const esc = (v) => {
