@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Network Management Suite</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Ccircle cx='7' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='17' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='12' cy='17' r='2.6' fill='white'/%3E%3Cpath d='M8.6 8.6 10.8 14.6M15.4 8.6l-2.2 6M9.4 7h5.4' stroke='white' stroke-width='1.4' fill='none'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -41,8 +42,9 @@
         </button>
       </nav>
 
-      <div class="sidebar-foot">
-        <span class="dot dot-green"></span> v1.1 · SQLite
+      <div class="sidebar-foot" title="Organization settings">
+        <span class="org-name" id="orgName">Network Management Suite</span>
+        <span class="muted">v1.2 · SQLite</span>
       </div>
     </aside>
 
@@ -210,6 +212,9 @@
             <button class="btn sm diag-add" data-type="printer">Printer</button>
             <button class="btn sm diag-add" data-type="cloud">Internet</button>
             <span class="diag-sep"></span>
+            <button class="btn sm" id="diagAddZone">+ Add site</button>
+            <button class="btn sm" id="diagZoneRename" disabled>Rename site</button>
+            <span class="diag-sep"></span>
             <button class="btn sm" id="diagConnect">Connect: off</button>
             <button class="btn sm danger" id="diagDelete">Delete selected</button>
             <span class="diag-sep"></span>
@@ -219,15 +224,36 @@
           </div>
           <div class="diagram-wrap">
             <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas"></svg>
-            <div id="diagHint" class="diag-hint">Click a device button above to add it, drag to move, click two nodes to connect, attach nodes to real devices for live status.</div>
+            <div id="diagHint" class="diag-hint">Add <b>sites</b> (offices/rooms) first, then drop devices into them and connect them. Drag to move; drag a site's corner to resize it.</div>
           </div>
           <div class="diagram-legend">
             <span class="leg leg-up">● UP</span>
             <span class="leg leg-down">● DOWN</span>
             <span class="leg leg-unknown">● Unknown/not linked</span>
+            <span class="diag-sep"></span>
+            <span class="leg leg-zone">▭ Site / office zone</span>
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <div id="setupScreen" class="setup" hidden>
+    <div class="setup-box">
+      <div class="setup-brand" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
+          <path d="M7.5 7.5 10.5 15.8M16.5 7.5l-4.5 8.3M8.5 6h7.2"/>
+        </svg>
+      </div>
+      <h1>Welcome to the Network Management Suite</h1>
+      <p class="muted">Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.</p>
+      <div class="field">
+        <label for="setupOrg">Organization name</label>
+        <input id="setupOrg" type="text" placeholder="e.g. Wolayita Zone Innovation and Technology Office" autocomplete="organization">
+      </div>
+      <label class="check"><input type="checkbox" id="setupDemo" checked> <span>Load a demonstration office network to explore every feature</span></label>
+      <button class="btn primary full" id="setupStart">Start using the Suite</button>
     </div>
   </div>
 

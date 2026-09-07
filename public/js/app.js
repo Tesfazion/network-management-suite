@@ -2,7 +2,10 @@ const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, txt) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
-  if (txt !== undefined) n.textContent = txt;
+  if (txt !== undefined) {
+    if (txt instanceof Element) n.append(txt);
+    else n.textContent = txt;
+  }
   return n;
 };
 
@@ -671,9 +674,10 @@ $('#content').addEventListener('click', (e) => {
 // ---------- Diagram editor ----------
 const DIAG_W = 1200;
 const DIAG_H = 680;
-const diag = { nodes: [], links: [] };
+const diag = { nodes: [], links: [], zones: [] };
 let diagStatus = {};               // device_id -> 'up' | 'down'
 let diagSel = null;                // selected node id
+let diagSelZone = null;            // selected zone/site id
 let diagPlace = null;              // active type to place (or null)
 let diagConnFrom = null;           // connect-mode first node id
 let diagSaveTimer = null;
@@ -686,6 +690,7 @@ async function loadDiagram() {
   ]);
   diag.nodes = saved.nodes || [];
   diag.links = saved.links || [];
+  diag.zones = saved.zones || [];
   window.__devicesCache = devices;
   diagStatus = {};
   statuses.forEach((s) => { if (s.id != null) diagStatus[s.id] = s.last_status; });
@@ -704,16 +709,25 @@ function nodeById(id) { return diag.nodes.find((n) => n.id === id); }
 
 function placeNode(type, x, y) {
   const count = diag.nodes.filter((n) => n.type === type).length;
-  const n = { id: uid(), type, label: (DEFAULT_LABEL[type] || type) + (count ? '-' + (count + 1) : ''), x, y, device_id: null };
+  const n = { id: uid(), type, label: (DEFAULT_LABEL[type] || type) + (count ? '-' + (count + 1) : ''), x, y, device_id: null, zone: zoneAt(x, y) };
   diag.nodes.push(n);
-  diagSel = n.id;
+  selectNode(n.id);
   renderDiagram();
   touchDiagram();
 }
 
+function zoneAt(x, y) {
+  const z = diag.zones.find((z) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h);
+  return z ? z.id : null;
+}
+
+function selectNode(id) { diagSel = id; diagSelZone = null; }
+function selectZone(id) { diagSelZone = id; diagSel = null; }
+
 function renderDiagram() {
   const svg = $('#diagCanvas');
   svg.replaceChildren(diagDefs(), diagBgRect());
+  diag.zones.forEach((z) => svg.appendChild(zoneGroup(z)));
   diag.links.forEach((l) => {
     const a = nodeById(l.from); const b = nodeById(l.to);
     if (!a || !b) return;
@@ -724,6 +738,8 @@ function renderDiagram() {
     svg.appendChild(line);
   });
   diag.nodes.forEach((n) => svg.appendChild(nodeGroup(n)));
+  const rename = $('#diagZoneRename');
+  if (rename) rename.disabled = !diagSelZone;
 }
 
 function diagDefs() {
@@ -746,6 +762,127 @@ function diagBgRect() {
   rect.setAttribute('width', DIAG_W); rect.setAttribute('height', DIAG_H);
   rect.setAttribute('fill', 'url(#diagGrid)');
   return rect;
+}
+
+const ZONE_COUNTS = { router: 'Router', switch: 'Switch', server: 'Server', pc: 'PC', printer: 'Printer', cloud: 'Internet' };
+
+function zoneCountText(z) {
+  const counts = {};
+  diag.nodes.forEach((n) => {
+    if (n.zone !== z.id) return;
+    const label = ZONE_COUNTS[n.type] || n.type;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  const plural = (w, v) => v === 1 ? w : w + (w.endsWith('ch') ? 'es' : w.endsWith('y') ? 'ies' : 's');
+  return Object.entries(counts).map(([k, v]) => `${v} ${plural(k, v)}`).join(' · ');
+}
+
+function zoneGroup(z) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs, cls) => {
+    const e = document.createElementNS(svgNS, tag);
+    Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v));
+    if (cls) e.classList.add(cls);
+    return e;
+  };
+  const g = mk('g', { 'data-id': z.id });
+  g.classList.add('diag-zone');
+  if (z.id === diagSelZone) g.classList.add('sel');
+
+  g.appendChild(mk('rect', { x: z.x, y: z.y, width: z.w, height: z.h }, 'zone-body'));
+  const title = mk('text', { x: z.x + 14, y: z.y + 24, 'text-anchor': 'start' }, 'zone-title');
+  title.textContent = z.label || 'Site';
+  g.appendChild(title);
+
+  const count = mk('text', { x: z.x + 14, y: z.y + z.h - 14, 'text-anchor': 'start' }, 'zone-count');
+  count.textContent = zoneCountText(z) || '';
+  g.appendChild(count);
+
+  const hit = mk('rect', { x: z.x, y: z.y, width: z.w, height: z.h }, 'zone-hit');
+  hit.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (diagPlace) {
+      const rect = $('#diagCanvas').getBoundingClientRect();
+      placeNode(diagPlace,
+        Math.round((e.clientX - rect.left) * (DIAG_W / rect.width)),
+        Math.round((e.clientY - rect.top) * (DIAG_H / rect.height)));
+      return;
+    }
+    selectZone(z.id);
+    startZoneDrag(z, e);
+  });
+  g.appendChild(hit);
+
+  const resize = mk('rect', { x: z.x + z.w - 16, y: z.y + z.h - 16, width: 16, height: 16 }, 'zone-resize');
+  resize.addEventListener('pointerdown', (e) => { e.stopPropagation(); selectZone(z.id); startZoneResize(z, e); });
+  g.appendChild(resize);
+
+  return g;
+}
+
+function startZoneDrag(z, e) {
+  const svg = $('#diagCanvas');
+  const rect = svg.getBoundingClientRect();
+  const offX = z.x - (e.clientX - rect.left) * (DIAG_W / rect.width);
+  const offY = z.y - (e.clientY - rect.top) * (DIAG_H / rect.height);
+  let moved = false;
+  const move = (ev) => {
+    moved = true;
+    const nx = Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width) + offX);
+    const ny = Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height) + offY);
+    const zx = Math.max(0, Math.min(nx, DIAG_W - z.w));
+    const zy = Math.max(0, Math.min(ny, DIAG_H - z.h));
+    const dx = zx - z.x, dy = zy - z.y;
+    z.x = zx; z.y = zy;
+    diag.nodes.forEach((n) => { if (n.zone === z.id) { n.x += dx; n.y += dy; } });
+    renderDiagram();
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    if (moved) touchDiagram();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
+function startZoneResize(z, e) {
+  const svg = $('#diagCanvas');
+  const rect = svg.getBoundingClientRect();
+  const sx = z.x, sy = z.y;
+  const move = (ev) => {
+    const mx = Math.min(Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width)), DIAG_W);
+    const my = Math.min(Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height)), DIAG_H);
+    z.w = Math.max(90, mx - sx);
+    z.h = Math.max(70, my - sy);
+    renderDiagram();
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    touchDiagram();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
+function addZone() {
+  const z = { id: 'z' + uid(), label: 'New site', x: 70, y: 70, w: 320, h: 180, room_id: null };
+  diag.zones.push(z);
+  selectZone(z.id);
+  renderDiagram();
+  touchDiagram();
+  renameZone(z);
+}
+
+function renameZone(z) {
+  if (!z) return;
+  const name = prompt('Site / office name (e.g. Admin Office):', z.label || '');
+  if (name && name.trim()) {
+    z.label = name.trim();
+    renderDiagram();
+    touchDiagram();
+  }
 }
 
 function nodeGroup(n) {
@@ -843,6 +980,7 @@ function pickNode(n, e) {
     return;
   }
   diagSel = n.id;
+  selectNode(n.id);
   renderDiagram();
   startDrag(n, e);
 }
@@ -885,6 +1023,7 @@ $('#diagCanvas').addEventListener('pointerdown', (e) => {
     return;
   }
   diagSel = null;
+  diagSelZone = null;
   renderDiagram();
 });
 
@@ -912,7 +1051,17 @@ $('#diagConnect').addEventListener('click', () => {
 });
 
 $('#diagDelete').addEventListener('click', () => {
-  if (!diagSel) return toast('Select a node first', 'warn');
+  if (diagSelZone) {
+    const keep = diag.zones.find((zz) => zz.id === diagSelZone);
+    diag.zones = diag.zones.filter((zz) => zz.id !== diagSelZone);
+    diag.nodes.forEach((n) => { if (n.zone === diagSelZone) n.zone = null; });
+    diagSelZone = null;
+    renderDiagram();
+    touchDiagram();
+    toast(keep ? ('Site "' + keep.label + '" removed — devices kept on canvas') : 'Site removed');
+    return;
+  }
+  if (!diagSel) return toast('Select a node or site first', 'warn');
   diag.nodes = diag.nodes.filter((n) => n.id !== diagSel);
   diag.links = diag.links.filter((l) => l.from !== diagSel && l.to !== diagSel);
   diagSel = null;
@@ -922,7 +1071,19 @@ $('#diagDelete').addEventListener('click', () => {
 });
 
 $('#diagCanvas').addEventListener('keydown', (e) => {
-  if ((e.key === 'Delete' || e.key === 'Backspace') && diagSel) $('#diagDelete').click();
+  if ((e.key === 'Delete' || e.key === 'Backspace') && (diagSel || diagSelZone)) $('#diagDelete').click();
+});
+
+$('#diagAddZone').addEventListener('click', () => {
+  diagPlace = null;
+  document.querySelectorAll('.diag-add').forEach((b) => b.classList.remove('active'));
+  addZone();
+});
+
+$('#diagZoneRename').addEventListener('click', () => {
+  const z = diag.zones.find((zz) => zz.id === diagSelZone);
+  if (!z) return toast('Select a site first', 'warn');
+  renameZone(z);
 });
 
 $('#diagDeviceLink').addEventListener('change', (e) => {
@@ -991,10 +1152,67 @@ $('#diagSave').addEventListener('click', async () => {
   } catch (e) { toast(e.message, 'err'); }
 });
 
+// ---------- Organization / setup ----------
+let setupMode = 'welcome';   // 'welcome' | 'settings'
+let orgSettings = { org_name: 'Network Management Suite' };
+
+function applyOrgBranding(name) {
+  const org = name || 'Network Management Suite';
+  $('#orgName').textContent = org;
+  document.title = org + ' — Network Management Suite';
+}
+
+function showSetup(mode) {
+  setupMode = mode;
+  const welcome = mode === 'welcome';
+  $('#setupDemo').closest('.check').style.display = welcome ? '' : 'none';
+  document.querySelector('.setup-box h1').textContent = welcome
+    ? 'Welcome to the Network Management Suite'
+    : 'Organization settings';
+  document.querySelector('.setup-box p').textContent = welcome
+    ? 'Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.'
+    : 'Change the organization name shown in this console. (Loading demo data is not available here — it would replace existing entries.)';
+  $('#setupStart').textContent = welcome ? 'Start using the Suite' : 'Save settings';
+  $('#setupOrg').value = welcome ? '' : (orgSettings.org_name || '');
+  $('#setupScreen').hidden = false;
+  $('#setupOrg').focus();
+}
+
+async function saveSetup() {
+  const org = $('#setupOrg').value.trim() || 'Network Management Suite';
+  const demo = setupMode === 'welcome' && $('#setupDemo').checked;
+  const btn = $('#setupStart');
+  btn.disabled = true;
+  try {
+    await api('/api/setup', { method: 'POST', body: JSON.stringify({ org_name: org, demo }) });
+    applyOrgBranding(org);
+    orgSettings.org_name = org;
+    $('#setupScreen').hidden = true;
+    toast(demo ? 'Setup complete — demo data loaded' : 'Settings saved');
+    await warmCaches();
+    goTab(currentTab);
+  } catch (e) {
+    toast(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('#setupStart').addEventListener('click', saveSetup);
+$('#setupScreen').addEventListener('click', (e) => { if (e.target === $('#setupScreen')) $('#setupStart').focus(); });
+$('#setupOrg').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSetup(); });
+$('.sidebar-foot').addEventListener('click', () => showSetup('settings'));
+
 // ---------- Init ----------
 window.addEventListener('DOMContentLoaded', async () => {
-  await warmCaches();
+  const setup = await api('/api/setup');
   const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
     .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
+  currentTab = tab;
+  if (!setup.configured) { showSetup('welcome'); return; }
+  orgSettings = { org_name: setup.org_name };
+  applyOrgBranding(setup.org_name);
+  $('#setupScreen').hidden = true;
+  await warmCaches();
   goTab(tab);
 });

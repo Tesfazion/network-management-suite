@@ -37,10 +37,10 @@
 
 ## What this project is
 
-The **Network Management Suite** is a lightweight, self-hosted web application that keeps **three kinds of network knowledge in one place**:
+The **Network Management Suite** is a lightweight, self-hosted web application that keeps **three kinds of network knowledge in one place** — and can be installed and branded for **any organization** in about a minute:
 
 | # | Knowledge | What it records |
-|---|-----------|-----------------|
+|-----------|-----------|-----------------|
 | 1 | **Physical** | The *cabling plant*: rooms, wall outlets, patch panels, and every cable run between an outlet and a patch-panel port. |
 | 2 | **Logical** | The *design*: VLANs (which department lives on which segmented network), and every device with its IP address, VLAN, MAC, and location. |
 | 3 | **Live** | The *health*: whether each device answers a ping right now, how fast it responds (RTT), and a history of its availability over time. |
@@ -50,6 +50,7 @@ It is a full-stack application you run on a single machine:
 
 - **Backend** — Node.js + Express exposing a JSON REST API, backed by a **SQLite** file database (zero external dependencies, one small file).
 - **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with **six** views: **Dashboard**, **Infrastructure**, **IP & VLAN**, **Monitoring**, **Incidents**, and a visual **Network Diagram** editor.
+- **First-run setup wizard** — on a fresh install, the app greets you by name, stores your **organization name** (shown in the sidebar footer and browser title), and can pre-load a demonstration office network so every feature is populated instantly.
 
 ---
 
@@ -165,12 +166,13 @@ The Suite actively audits its own data:
 
 A lightweight, Packet-Tracer-style drawing board that mirrors the documented network *visually*:
 
+- **Sites / office zones** — draw shaded containers (e.g. **Admin Office**, **ICT Office**, **Server Room**) that group the devices inside them and display a live device-type count card ("2 PCs · 2 Switches · 1 Router"). Drag a site's corner to resize it; dragging a site moves everything inside it.
 - **Palette** — place Router, Switch, Server, PC, Printer, and Internet/cloud icons directly on the canvas. (Inspired by Cisco Packet Tracer's drag-and-drop layout.)
 - **Drag, select, delete** — move nodes around with the pointer, select to highlight, press Delete or the toolbar button to remove.
 - **Links** — "Connect" mode draws lines between two icons, exactly like cabling between devices.
 - **Live status coloring** — attach any node to a real device from the inventory; the node turns **green (UP)**, **red (DOWN)**, or **grey (not checked)** based on the latest monitoring ping.
 - **Import inventory** — one click rebuilds the whole canvas from the device database; "Auto-layout" arranges everything in a ring around the core switch.
-- **Auto-save** — every change is saved to the database automatically (debounced), so the diagram survives refresh.
+- **Auto-save** — every change (nodes, links, and zones) is saved to the database automatically (debounced), so the diagram survives refresh.
 
 ---
 
@@ -228,8 +230,13 @@ A lightweight, Packet-Tracer-style drawing board that mirrors the documented net
 
 ### Visual Diagram Editor
 - Packet-Tracer-style icon palette (Router / Switch / Server / PC / Printer / Cloud), drag to move, click to connect.
+- **Site / office zones** — shaded containers with device-type count cards, drag-to-move with their devices, corner resize, and rename.
 - **Live health coloring** — linked nodes turn green/red based on monitoring status.
 - **Import from inventory** + auto-layout in a ring around the core switch; automatic debounced saving.
+
+### First-run setup & organization branding
+- **Setup wizard** on first launch — name your organization (shown across the UI) and optionally load the demo network.
+- Organization name editable anytime from the sidebar footer; a `scripts/setup.js` CLI covers headless/remote installs.
 
 ### Search, Export & UX
 - **Global search** across devices, cables, outlets, rooms, VLANs, and incidents.
@@ -285,7 +292,8 @@ monitor_history n───1 devices   (device_id, status, rtt_ms, checked_at)
 | `devices` | Hardware + IP inventory | name, ip, device_type, **vlan_id**, mac, location, monitored |
 | `issues` | Support incidents (workflow log) | title, severity, status, **device_id**, **outlet_id**, reporter, resolved_at |
 | `monitor_history` | Ping results (append-only) | **device_id**, status, rtt_ms, checked_at |
-| `diagram` | One-row persisted canvas | data (JSON: `{nodes, links, device_id}`), updated_at |
+| `diagram` | One-row persisted canvas | data (JSON: `{zones, nodes, links, device_id}`), updated_at |
+| `settings` | Organization setup (single row) | **org_name**, installed_at |
 
 Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets while cable runs **survive** with a nulled outlet reference (`ON DELETE SET NULL`), preserving the cabling record. Incidents keep their text if a linked device is removed. `monitor_history` is append-only — it never overwrites, so trends stay visible.
 
@@ -314,13 +322,33 @@ Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets
 
 ### Installation
 
+> **For any organization** — there is a one-click installer and a first-run setup wizard. The Suite binds `0.0.0.0` by default, so once it runs on one office machine, anyone on the LAN can reach it at `http://<server-ip>:8080`.
+
+**Windows:**
+```bash
+install.bat      # installs dependencies and fetches optional demo data
+npm start        # run it
+```
+
+**Linux / macOS:**
+```bash
+bash install.sh  # installs dependencies and fetches optional demo data
+npm start
+```
+
+**Manual:**
 ```bash
 # 1. Clone or copy the project, then install dependencies
 npm install
 
 # 2. Optional — load the demo data (a realistic office network)
 npm run seed
+
+# 3. Configure your organization without the browser (optional, headless installs)
+npm run setup -- --org="Acme Office Network" --demo
 ```
+
+> On first launch in a browser you'll be greeted by a **setup wizard**: type your organization name (it becomes the name shown in the sidebar footer and browser title) and choose whether to load the demonstration network.
 
 > **Note:** `better-sqlite3` compiles a native binding during `npm install`. A prebuilt binary is downloaded automatically for most platforms; otherwise a compatible build toolchain is required (e.g. Visual Studio Build Tools on Windows).
 
@@ -340,6 +368,15 @@ $env:PORT = 9090   # PowerShell
 export PORT=9090   # Linux/macOS
 npm start
 ```
+
+**Linux service (systemd)** — for permanent installs, copy `deploy/nms.service` into `/etc/systemd/system/`, create a service user, adjust the paths, then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now nms
+```
+
+The server binds `0.0.0.0` by default so other machines on the network can open `http://<server-ip>:8080`.
 
 ### Resetting the database
 
@@ -372,7 +409,9 @@ Tests run against an isolated temporary database (so your `network.db` is never 
 - **Incident lifecycle** — Create → In Progress → Resolved (with `resolved_at` stamped) → delete,
 - **Conflict detection** — a duplicate IP pair and an out-of-subnet device are both flagged,
 - **Global search** — finds incidents as well as devices/cables,
-- **CSV export** — headers of the cable log and device inventory.
+- **CSV export** — headers of the cable log and device inventory,
+- **Diagram** — empty by default, persists nodes, links **and zones**,
+- **Setup** — fresh install reports unconfigured; `POST /api/setup` stores the org name and demo-seeds the full dataset.
 
 ---
 
@@ -380,10 +419,17 @@ Tests run against an isolated temporary database (so your `network.db` is never 
 
 ```
 ├── package.json            # Project metadata, scripts, dependencies
+├── install.bat             # Windows one-click installer
+├── install.sh              # Linux/macOS one-click installer
 ├── network.db              # SQLite database (created automatically at first run)
+├── deploy/
+│   └── nms.service         # systemd unit for permanent Linux installs
+├── scripts/
+│   └── setup.js            # Headless org setup CLI (--org / --demo)
 ├── server/
 │   ├── db.js               # Schema definition + connection factory
-│   ├── seed.js             # Demo-data loader
+│   ├── seed.js             # Demo-data loader CLI
+│   ├── seed-data.js        # Shared loadDemo(db) used by seed.js and /api/setup
 │   ├── monitor.js          # ICMP ping wrapper
 │   ├── iputil.js           # IP/CIDR helpers + conflict detection
 │   ├── server.js           # Express app + REST API + static hosting
@@ -394,7 +440,7 @@ Tests run against an isolated temporary database (so your `network.db` is never 
     ├── css/
     │   └── style.css       # Professional dark theme
     └── js/
-        └── app.js          # Frontend logic (views, CRUD, monitoring, search)
+        └── app.js          # Frontend logic (views, CRUD, monitoring, diagram, setup)
 ```
 
 ---
@@ -471,8 +517,15 @@ All endpoints return JSON and live under `http://localhost:8080/api`.
 ### Diagram
 | Method | Path            | Description                                             |
 |--------|-----------------|---------------------------------------------------------|
-| GET    | `/api/diagram`  | Load the saved canvas state `{ nodes, links }`          |
-| PUT    | `/api/diagram`  | Persist the canvas (nodes: id/type/label/x/y/device_id) |
+| GET    | `/api/diagram`  | Load the saved canvas state `{ zones, nodes, links }`   |
+| PUT    | `/api/diagram`  | Persist the canvas (zones + nodes: id/type/label/x/y/device_id/zone + links) |
+
+### Setup & organization
+| Method | Path            | Description                                             |
+|--------|-----------------|---------------------------------------------------------|
+| GET    | `/api/setup`    | Returns `{ configured, org_name, demo }` — tells the UI whether to show the setup wizard |
+| POST   | `/api/setup`    | Store the organization name; with `{ demo: true }` also loads the demo dataset |
+| GET    | `/api/settings` | Current `{ org_name, installed_at }`                    |
 
 ### Exports
 | Method | Path                        | Description                       |
@@ -524,7 +577,7 @@ Monitoring uses the operating system's `ping` command — the same tool a techni
 | VLANs         | 10 Admin (192.168.10.0/24), 20 ICT_Networking (192.168.20.0/24), 99 Infrastructure (192.168.99.0/24) |
 | Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, **WEB-SRV-01**, FileServer, Printer-01, **Printer-02**, HR-PC-01 |
 | Issues        | High-file-server-down (Open), Medium-slow-internet (In Progress), Low-printer-paper (Resolved) |
-| Diagram       | 10 typed icons (switch/router/server/pc/printer) pre-arranged in a ring around CoreSwitch, all linked to real devices |
+| Diagram       | 3 site zones (Server Room, Admin Office, ICT Office) each with a shaded group of 10 linked, real-device icons — CoreSwitch in the middle |
 
 The seed *deliberately* includes two live problems so the audit feature is immediately demonstrable:
 

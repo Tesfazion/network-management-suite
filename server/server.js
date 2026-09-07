@@ -3,6 +3,7 @@ const path = require('path');
 const db = require('./db');
 const { ping } = require('./monitor');
 const { ipConflicts } = require('./iputil');
+const { loadDemo } = require('./seed-data');
 
 const app = express();
 app.use(express.json());
@@ -243,7 +244,7 @@ app.delete('/api/issues/:id', (req, res) => {
 });
 
 // ---------- Diagram (visual editor canvas) ----------
-const DIAGRAM_DEFAULT = { nodes: [], links: [] };
+const DIAGRAM_DEFAULT = { nodes: [], links: [], zones: [] };
 
 function getDiagram() {
   const row = db.prepare('SELECT data FROM diagram WHERE id=1').get();
@@ -255,6 +256,15 @@ app.get('/api/diagram', (req, res) => res.json(getDiagram()));
 
 app.put('/api/diagram', (req, res) => {
   const body = req.body || {};
+  const zones = (Array.isArray(body.zones) ? body.zones : []).map((z) => ({
+    id: String(z.id ?? ''),
+    label: String(z.label || 'Site'),
+    x: Math.max(0, Math.round(Number(z.x) || 0)),
+    y: Math.max(0, Math.round(Number(z.y) || 0)),
+    w: Math.max(60, Math.round(Number(z.w) || 180)),
+    h: Math.max(60, Math.round(Number(z.h) || 140)),
+    room_id: z.room_id != null && z.room_id !== '' ? Number(z.room_id) : null,
+  }));
   const nodes = (Array.isArray(body.nodes) ? body.nodes : []).map((n) => ({
     id: String(n.id ?? ''),
     type: String(n.type || 'router'),
@@ -262,15 +272,39 @@ app.put('/api/diagram', (req, res) => {
     x: Math.max(0, Math.round(Number(n.x) || 0)),
     y: Math.max(0, Math.round(Number(n.y) || 0)),
     device_id: n.device_id != null && n.device_id !== '' ? Number(n.device_id) : null,
+    zone: zones.some((z) => z.id === n.zone) ? String(n.zone) : null,
   }));
   const links = (Array.isArray(body.links) ? body.links : []).map((l) => ({
     from: String(l.from ?? ''), to: String(l.to ?? ''),
   })).filter((l) => l.from && l.to);
   db.prepare(`INSERT INTO diagram (id, data, updated_at) VALUES (1, ?, datetime('now'))
     ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at`)
-    .run(JSON.stringify({ nodes, links }));
-  res.json({ ok: true, nodes: nodes.length, links: links.length });
+    .run(JSON.stringify({ nodes, links, zones }));
+  res.json({ ok: true, nodes: nodes.length, links: links.length, zones: zones.length });
 });
+
+// ---------- Setup / organization ----------
+function getSettings() {
+  const row = db.prepare('SELECT org_name, installed_at FROM settings WHERE id=1').get();
+  return row || { org_name: null, installed_at: null };
+}
+
+app.get('/api/setup', (req, res) => {
+  const s = getSettings();
+  const demoLoaded = db.prepare('SELECT COUNT(*) c FROM devices').get().c > 0;
+  res.json({ configured: Boolean(s.org_name), org_name: s.org_name, demo: demoLoaded });
+});
+
+app.post('/api/setup', (req, res) => {
+  const { org_name, demo } = req.body || {};
+  const org = String(org_name || '').trim() || 'Network Management Suite';
+  db.prepare(`INSERT INTO settings (id, org_name, installed_at) VALUES (1, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET org_name=excluded.org_name`).run(org);
+  if (demo) loadDemo(db);
+  res.json(getSettings());
+});
+
+app.get('/api/settings', (req, res) => res.json(getSettings()));
 
 // ---------- CSV export ----------
 function toCsv(rows, headers) {
@@ -392,10 +426,14 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 8080;
+const HOST = process.env.HOST || '0.0.0.0';
+const LAN_IP = process.env.LAN_IP || null;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Network Management Suite running at http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    const url = PORT === 80 ? `http://localhost` : `http://localhost:${PORT}`;
+    console.log(`Network Management Suite running at ${url}`);
+    if (LAN_IP) console.log(`  LAN access: http://${LAN_IP}:${PORT}`);
   });
 }
 

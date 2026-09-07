@@ -1,0 +1,20 @@
+[Unit]
+Description=Network Management Suite
+After=network.target
+
+[Service]
+Type=simple
+# Install the project here, e.g. /opt/network-management-suite
+WorkingDirectory=/opt/network-management-suite
+ExecStart=/usr/bin/node server/server.js
+Restart=on-failure
+RestartSec=3
+Environment=PORT=8080
+Environment=HOST=0.0.0.0
+# Run as an unprivileged user you create, e.g.:
+#   sudo useradd -r -s /usr/sbin/nologin nms
+User=nms
+Group=nms
+
+[Install]
+WantedBy=multi-user.target

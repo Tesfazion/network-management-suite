@@ -164,15 +164,16 @@ test('CSV exports return well-formed headers', async () => {
   assert.match(t2.split('\n')[0], /Name.*IP.*VLAN/);
 });
 
-test('diagram: empty by default, persists nodes and links', async () => {
+test('diagram: empty by default, persists nodes, links and zones', async () => {
   const empty = await fetch(base + '/diagram').then((r) => r.json());
-  assert.deepStrictEqual(empty, { nodes: [], links: [] });
+  assert.deepStrictEqual(empty, { nodes: [], links: [], zones: [] });
 
   const put = await fetch(base + '/diagram', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      nodes: [{ id: 'a', type: 'router', label: 'R', x: 10, y: 20, device_id: null }],
+      nodes: [{ id: 'a', type: 'router', label: 'R', x: 10, y: 20, device_id: null, zone: 'z1' }],
       links: [],
+      zones: [{ id: 'z1', label: 'Admin Office', x: 0, y: 0, w: 300, h: 200, room_id: null }],
     }),
   });
   assert.strictEqual(put.status, 200);
@@ -180,4 +181,29 @@ test('diagram: empty by default, persists nodes and links', async () => {
   const back = await fetch(base + '/diagram').then((r) => r.json());
   assert.strictEqual(back.nodes[0].type, 'router');
   assert.strictEqual(back.nodes[0].x, 10);
+  assert.strictEqual(back.nodes[0].zone, 'z1');
+  assert.strictEqual(back.zones.length, 1);
+  assert.strictEqual(back.zones[0].label, 'Admin Office');
+});
+
+test('setup: fresh install is unconfigured, demo seed loads org + diagram zones', async () => {
+  const before = await fetch(base + '/setup').then((r) => r.json());
+  assert.strictEqual(before.configured, false);
+
+  const setup = await fetch(base + '/setup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ org_name: 'ACME Networks', demo: true }),
+  });
+  assert.strictEqual(setup.status, 200);
+  const s = await setup.json();
+  assert.strictEqual(s.org_name, 'ACME Networks');
+
+  const after = await fetch(base + '/setup').then((r) => r.json());
+  assert.strictEqual(after.configured, true);
+  assert.strictEqual(after.org_name, 'ACME Networks');
+  assert.strictEqual(after.demo, true);
+
+  const diagram = await fetch(base + '/diagram').then((r) => r.json());
+  assert.ok(diagram.zones.length >= 3, 'demo seed should create office zones');
+  assert.ok(diagram.nodes.length >= 8, 'demo seed should create nodes');
 });

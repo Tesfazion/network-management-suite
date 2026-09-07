@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server/server.js",
+    "setup": "node scripts/setup.js",
     "seed": "node server/seed.js",
     "test": "node --test"
   },

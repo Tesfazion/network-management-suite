@@ -93,6 +93,12 @@ CREATE TABLE IF NOT EXISTS diagram (
   data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[]}',
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  org_name TEXT DEFAULT 'Network Management Suite',
+  installed_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
   return db;
