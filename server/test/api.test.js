@@ -112,3 +112,54 @@ test('dashboard returns aggregate counts and uptime', async () => {
   assert.ok('up' in dash.uptime);
   assert.ok(dash.uptime.total >= 1);
 });
+
+test('issues: CRUD lifecycle and resolved_at on completion', async () => {
+  const { data: created } = await req('POST', '/issues', {
+    title: 'Printer not connecting', description: 'Appears offline', severity: 'High', status: 'Open',
+  });
+  assert.strictEqual(created.status, 'Open');
+
+  const { data: list } = await req('GET', '/issues');
+  assert.ok(list.some((i) => i.id === created.id));
+
+  const { data: progressed } = await req('PATCH', `/issues/${created.id}`, { status: 'In Progress' });
+  assert.strictEqual(progressed.status, 'In Progress');
+
+  const { data: resolved } = await req('PATCH', `/issues/${created.id}`, { status: 'Resolved' });
+  assert.strictEqual(resolved.status, 'Resolved');
+  assert.ok(resolved.resolved_at, 'resolved_at should be stamped');
+
+  const { status } = await req('DELETE', `/issues/${created.id}`);
+  assert.strictEqual(status, 200);
+});
+
+test('conflicts: duplicate IPs and out-of-subnet devices are detected', async () => {
+  await req('POST', '/vlans', { vlan_id: 777, name: 'Test', subnet: '192.168.77.0/24', gateway: '192.168.77.1' });
+  const { data: vlan } = await req('GET', '/vlans');
+  const v = vlan.find((x) => x.vlan_id === 777);
+
+  await req('POST', '/devices', { name: 'A', ip: '192.168.77.10', vlan_id: v.id });
+  await req('POST', '/devices', { name: 'B', ip: '192.168.77.10', vlan_id: v.id });
+  await req('POST', '/devices', { name: 'C', ip: '10.1.1.1', vlan_id: v.id });
+
+  const { data: conflicts } = await req('GET', '/conflicts');
+  assert.ok(conflicts.duplicateIps.some((d) => d.ip === '192.168.77.10'));
+  assert.ok(conflicts.outsideSubnet.some((w) => /C \(10\.1\.1\.1\)/.test(w.message)));
+});
+
+test('search finds devices, cables and incidents', async () => {
+  await req('POST', '/issues', { title: 'Scanner jammed after upgrade', status: 'Open' });
+  const { data: res } = await req('GET', '/search?q=jammed');
+  assert.ok(res.issues.some((i) => /jammed/i.test(i.title)));
+});
+
+test('CSV exports return well-formed headers', async () => {
+  const r1 = await fetch(base + '/export/cables.csv');
+  const t1 = await r1.text();
+  assert.ok(r1.headers.get('content-type').includes('text/csv'));
+  assert.match(t1.split('\n')[0], /Cable ID/);
+
+  const r2 = await fetch(base + '/export/devices.csv');
+  const t2 = await r2.text();
+  assert.match(t2.split('\n')[0], /Name.*IP.*VLAN/);
+});

@@ -58,13 +58,26 @@ CREATE TABLE IF NOT EXISTS vlans (
 CREATE TABLE IF NOT EXISTS devices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  ip TEXT UNIQUE,
+  ip TEXT,
   device_type TEXT,
   vlan_id INTEGER REFERENCES vlans(id),
   mac TEXT,
   location TEXT,
   monitored INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT,
+  severity TEXT DEFAULT 'Medium',
+  status TEXT DEFAULT 'Open',
+  device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
+  outlet_id INTEGER REFERENCES outlets(id) ON DELETE SET NULL,
+  reporter TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  resolved_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS monitor_history (

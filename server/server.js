@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const db = require('./db');
 const { ping } = require('./monitor');
+const { ipConflicts } = require('./iputil');
 
 const app = express();
 app.use(express.json());
@@ -145,6 +146,145 @@ app.delete('/api/devices/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- IP conflicts ----------
+app.get('/api/conflicts', (req, res) => {
+  const { duplicates, warnings, gatewayWarnings } = ipConflicts(db);
+  const groups = duplicates.map(([a, b]) => ({
+    ip: a.ip,
+    message: `${a.name} conflicts with ${b.name}`,
+    devices: [a, b].map((d) => ({ id: d.id, name: d.name })),
+  }));
+  res.json({
+    duplicateIps: groups,
+    outsideSubnet: warnings.map(({ device, vlan }) => ({
+      message: `${device.name} (${device.ip}) is outside VLAN ${vlan.vlan_id} ${vlan.name} subnet ${vlan.subnet}`,
+      deviceId: device.id,
+    })),
+    gatewayConflicts: gatewayWarnings.map(({ device, vlan }) => ({
+      message: `${device.name} is using the VLAN ${vlan.vlan_id} gateway address ${vlan.gateway}`,
+      deviceId: device.id,
+    })),
+  });
+});
+
+// ---------- Search ----------
+app.get('/api/search', (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) return res.json({ devices: [], cables: [], outlets: [], rooms: [], issues: [], vlans: [] });
+  const like = `%${q}%`;
+  const searchAll = (sql, paramCount) =>
+    db.prepare(sql).all(...Array(paramCount).fill(like));
+  res.json({
+    devices: searchAll(`
+      SELECT d.id, d.name, d.ip, d.device_type, d.location, v.name AS vlan_name
+      FROM devices d LEFT JOIN vlans v ON v.id = d.vlan_id
+      WHERE d.name LIKE ? OR d.ip LIKE ? OR d.mac LIKE ? OR d.location LIKE ?
+      ORDER BY d.name LIMIT 25`, 4),
+    cables: searchAll(`
+      SELECT c.id, c.cable_id, c.test_result, c.status, o.label AS outlet_label
+      FROM cables c LEFT JOIN outlets o ON o.id = c.outlet_id
+      WHERE c.cable_id LIKE ? OR c.notes LIKE ?
+      ORDER BY c.cable_id LIMIT 25`, 2),
+    outlets: searchAll(`
+      SELECT o.id, o.label, o.location, r.name AS room_name
+      FROM outlets o JOIN rooms r ON r.id = o.room_id
+      WHERE o.label LIKE ? OR o.location LIKE ?
+      ORDER BY o.label LIMIT 25`, 2),
+    rooms: searchAll('SELECT id, name, floor, purpose FROM rooms WHERE name LIKE ? OR purpose LIKE ? LIMIT 25', 2),
+    vlans: searchAll('SELECT id, vlan_id, name, subnet FROM vlans WHERE name LIKE ? OR subnet LIKE ? LIMIT 25', 2),
+    issues: searchAll(`
+      SELECT i.id, i.title, i.status, i.severity
+      FROM issues i WHERE i.title LIKE ? OR i.description LIKE ?
+      ORDER BY i.created_at DESC LIMIT 25`, 2),
+  });
+});
+
+// ---------- Issues (support incidents) ----------
+app.get('/api/issues', (req, res) => {
+  res.json(db.prepare(`
+    SELECT i.*, d.name AS device_name, o.label AS outlet_label
+    FROM issues i
+    LEFT JOIN devices d ON d.id = i.device_id
+    LEFT JOIN outlets o ON o.id = i.outlet_id
+    ORDER BY
+      CASE i.status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Resolved' THEN 2 ELSE 3 END,
+      i.created_at DESC`).all());
+});
+
+app.post('/api/issues', (req, res) => {
+  const { title, description, severity, status, device_id, outlet_id, reporter } = req.body;
+  if (!title) return res.status(400).json({ error: 'title is required' });
+  const r = db.prepare(`
+    INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter)
+    VALUES (?,?,?,?,?,?,?)`)
+    .run(title, description, severity || 'Medium', status || 'Open', device_id || null, outlet_id || null, reporter || null);
+  res.json(db.prepare('SELECT * FROM issues WHERE id=?').get(r.lastInsertRowid));
+});
+
+app.patch('/api/issues/:id', (req, res) => {
+  const issue = db.prepare('SELECT * FROM issues WHERE id=?').get(req.params.id);
+  if (!issue) return res.status(404).json({ error: 'not found' });
+  const { title, description, severity, status, device_id, outlet_id, reporter } = req.body;
+  const nextStatus = status ?? issue.status;
+  const resolvedAt = nextStatus === 'Resolved' || nextStatus === 'Closed'
+    ? (issue.resolved_at || new Date().toISOString().slice(0, 19).replace('T', ' '))
+    : null;
+  db.prepare(`UPDATE issues SET
+    title=COALESCE(?,title), description=COALESCE(?,description), severity=COALESCE(?,severity),
+    status=?, device_id=COALESCE(?,device_id), outlet_id=COALESCE(?,outlet_id),
+    reporter=COALESCE(?,reporter), resolved_at=? WHERE id=?`)
+    .run(title, description, severity, nextStatus, device_id, outlet_id, reporter, resolvedAt, req.params.id);
+  res.json(db.prepare('SELECT * FROM issues WHERE id=?').get(req.params.id));
+});
+
+app.delete('/api/issues/:id', (req, res) => {
+  db.prepare('DELETE FROM issues WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- CSV export ----------
+function toCsv(rows, headers) {
+  const esc = (v) => {
+    const s = v === null || v === undefined ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return headers.map((h) => h[0]).join(',') + '\n' +
+    rows.map((r) => headers.map(([, key]) => esc(r[key])).join(',')).join('\n');
+}
+
+app.get('/api/export/cables.csv', (req, res) => {
+  const rows = db.prepare(`
+    SELECT c.cable_id, r.name AS room, o.label AS outlet, o.location AS outlet_location,
+           pp.name AS panel, c.patch_port, c.cable_type, c.length_m, c.test_result, c.status, c.notes
+    FROM cables c
+    LEFT JOIN outlets o ON o.id = c.outlet_id
+    LEFT JOIN rooms r ON r.id = o.room_id
+    LEFT JOIN patch_panels pp ON pp.id = c.patch_panel_id
+    ORDER BY c.cable_id`).all();
+  const csv = toCsv(rows, [
+    ['Cable ID', 'cable_id'], ['Room', 'room'], ['Outlet', 'outlet'], ['Outlet Location', 'outlet_location'],
+    ['Patch Panel', 'panel'], ['Port', 'patch_port'], ['Type', 'cable_type'],
+    ['Length (m)', 'length_m'], ['Test Result', 'test_result'], ['Status', 'status'], ['Notes', 'notes'],
+  ]);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="cable-log.csv"');
+  res.send(csv);
+});
+
+app.get('/api/export/devices.csv', (req, res) => {
+  const rows = db.prepare(`
+    SELECT d.name, d.ip, d.device_type, d.mac, d.location, v.vlan_id AS vlan, v.name AS vlan_name, d.monitored
+    FROM devices d LEFT JOIN vlans v ON v.id = d.vlan_id
+    ORDER BY d.name`).all();
+  const csv = toCsv(rows, [
+    ['Name', 'name'], ['IP', 'ip'], ['Type', 'device_type'], ['MAC', 'mac'], ['Location', 'location'],
+    ['VLAN ID', 'vlan'], ['VLAN Name', 'vlan_name'], ['Monitored', 'monitored'],
+  ]);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="device-inventory.csv"');
+  res.send(csv);
+});
+
 // ---------- Monitoring ----------
 app.post('/api/monitor/check/:id', wrap(async (req, res) => {
   const device = db.prepare('SELECT * FROM devices WHERE id=?').get(req.params.id);
@@ -200,6 +340,8 @@ app.get('/api/dashboard', (req, res) => {
       devices: db.prepare('SELECT COUNT(*) c FROM devices').get().c,
       cablesActive: db.prepare("SELECT COUNT(*) c FROM cables WHERE status='Active'").get().c,
       cablesFailedTest: db.prepare("SELECT COUNT(*) c FROM cables WHERE test_result='Fail'").get().c,
+      openIssues: db.prepare("SELECT COUNT(*) c FROM issues WHERE status IN ('Open','In Progress')").get().c,
+      ipConflicts: ipConflicts(db).duplicates.length,
     },
     uptime: (() => {
       const last = db.prepare(`

@@ -32,13 +32,32 @@ vlan.run(20, 'ICT_Networking', '192.168.20.0/24', '192.168.20.1', 'Networking an
 vlan.run(99, 'Infrastructure', '192.168.99.0/24', '192.168.99.1', 'Network device management');
 
 const dev = db.prepare('INSERT INTO devices (name, ip, device_type, vlan_id, mac, location, monitored) VALUES (?,?,?,?,?,?,?)');
-dev.run('CoreSwitch', '192.168.99.2', 'Switch', 3, '00:1A:2B:3C:4D:01', 'Server Room', 1);
-dev.run('Router', '192.168.99.1', 'Router', 3, '00:1A:2B:3C:4D:00', 'Server Room', 1);
-dev.run('AccessSwitchA', '192.168.99.3', 'Switch', 3, '00:1A:2B:3C:4D:02', 'Server Room', 1);
-dev.run('AdminPC-01', '192.168.10.10', 'Workstation', 1, '00:1A:2B:3C:4D:11', 'Admin Office', 1);
-dev.run('ICT-PC-01', '192.168.20.10', 'Workstation', 2, '00:1A:2B:3C:4D:21', 'ICT Office', 1);
-dev.run('FileServer', '192.168.10.50', 'Server', 1, '00:1A:2B:3C:4D:30', 'Server Room', 1);
-dev.run('WEB-SRV-01', '192.168.10.60', 'Server', 1, '00:1A:2B:3C:4D:31', 'Server Room', 1);
+const dCoreSwitch = dev.run('CoreSwitch', '192.168.99.2', 'Switch', 3, '00:1A:2B:3C:4D:01', 'Server Room', 1).lastInsertRowid;
+const dRouter = dev.run('Router', '192.168.99.1', 'Router', 3, '00:1A:2B:3C:4D:00', 'Server Room', 1).lastInsertRowid;
+const dAccess = dev.run('AccessSwitchA', '192.168.99.3', 'Switch', 3, '00:1A:2B:3C:4D:02', 'Server Room', 1).lastInsertRowid;
+const dAdminPc = dev.run('AdminPC-01', '192.168.10.10', 'Workstation', 1, '00:1A:2B:3C:4D:11', 'Admin Office', 1).lastInsertRowid;
+const dIctPc = dev.run('ICT-PC-01', '192.168.20.10', 'Workstation', 2, '00:1A:2B:3C:4D:21', 'ICT Office', 1).lastInsertRowid;
+const dFile = dev.run('FileServer', '192.168.10.50', 'Server', 1, '00:1A:2B:3C:4D:30', 'Server Room', 1).lastInsertRowid;
+const dWeb = dev.run('WEB-SRV-01', '192.168.10.60', 'Server', 1, '00:1A:2B:3C:4D:31', 'Server Room', 1).lastInsertRowid;
+const dPrinter1 = dev.run('Printer-01', '192.168.20.25', 'Workstation', 2, '00:1A:2B:3C:4D:40', 'ICT Office', 0).lastInsertRowid;
+dev.run('Printer-02', '192.168.20.25', 'Workstation', 2, '00:1A:2B:3C:4D:41', 'ICT Office', 0);
+dev.run('HR-PC-01', '192.168.30.10', 'Workstation', 1, '00:1A:2B:3C:4D:50', 'Admin Office', 0);
+
+const issue = db.prepare(`
+  INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter)
+  VALUES (?,?,?,?,?,?,?)`);
+issue.run(
+  'File server unreachable from Admin Office',
+  'Users report they cannot open shared folders. FileServer does not respond to ping from VLAN 10.',
+  'High', 'Open', dFile, oA2, 'Zewudu (Networking Head)');
+issue.run(
+  'Slow internet on ICT office',
+  'Connectivity is slow and intermittent on outlet B-201. Suspected faulty cable or wall outlet.',
+  'Medium', 'In Progress', dIctPc, oB1, 'ICT staff');
+issue.run(
+  'Printer offline',
+  'Printer-01 not detected on the network. Possibly related to power cycling during maintenance.',
+  'Low', 'Resolved', dPrinter1, null, 'Helpdesk');
 
 try { db.prepare('COMMIT').run(); } catch (e) {}
 console.log('Seeded sample data successfully.');

@@ -44,11 +44,12 @@ The **Network Management Suite** is a lightweight, self-hosted web application t
 | 1 | **Physical** | The *cabling plant*: rooms, wall outlets, patch panels, and every cable run between an outlet and a patch-panel port. |
 | 2 | **Logical** | The *design*: VLANs (which department lives on which segmented network), and every device with its IP address, VLAN, MAC, and location. |
 | 3 | **Live** | The *health*: whether each device answers a ping right now, how fast it responds (RTT), and a history of its availability over time. |
+| 4 | **Operational** | *Incidents*: a log of reported problems linked to the affected device or outlet, tracked Open → In Progress → Resolved. |
 
 It is a full-stack application you run on a single machine:
 
 - **Backend** — Node.js + Express exposing a JSON REST API, backed by a **SQLite** file database (zero external dependencies, one small file).
-- **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with four tabs: **Dashboard**, **Infrastructure**, **IP & VLAN**, and **Monitoring**.
+- **Frontend** — a responsive, dark-themed single-page dashboard (vanilla HTML/CSS/JS, no build step) with **five modules**: **Dashboard**, **Infrastructure**, **IP & VLAN**, **Monitoring**, and **Incidents**.
 
 ---
 
@@ -63,12 +64,15 @@ Every wall outlet, patch-panel port, and cable run had to be documented by hand.
 Rooms, switches, VLANs, and devices were documented in different files, in different formats, maintained by different people. Seeing "which VLAN does the ICT office live on?" or "what is that IP address used for?" required digging through multiple documents.
 
 ### 3. IP address management was guesswork
-An IP address conflict is a classic office headache. Without a **device/IP inventory**, assigning an address is a gamble — and troubleshooting "two devices fighting over 192.168.10.50" is slow and frustrating.
+An IP address conflict is a classic office headache. Without a **device/IP inventory**, assigning an address is a gamble — and troubleshooting "two devices fighting over 192.168.10.50" is slow and frustrating. Mis-assigned devices (an IP outside its VLAN's subnet, or worse, a device squatting on the gateway address) compound the chaos.
 
 ### 4. There was no visibility into device health
 When "the internet is down", the first question is *"is it the ISP, the router, the switch, or the PC?"*. Manually pinging every device, one by one, is tedious — and nobody keeps a record that could show *when* a device went down or how often.
 
-### 5. Documentation was never finished
+### 5. Incidents were tracked in memory and email threads
+Reported problems ("the file server is slow", "outlet B-201 is dead") were handled, forgotten, and re-reported — there was no record of *what* was wrong, *which device/outlet* it affected, or whether it was actually resolved.
+
+### 6. Documentation was never finished
 Documenting is a chore people postpone — so it falls out of date quickly, and old documents become actively misleading. The only cure is a tool whose documentation **is** the tool: if it's not in the system, it doesn't exist.
 
 ---
@@ -79,18 +83,22 @@ The Suite turns each pain point above into a designed feature:
 
 | Problem | Platform response |
 |---------|-------------------|
-| Spreadsheet cable logs | A **Cable Runs** table where every run is linked to its outlet, room, panel, and port — with test result (Pass/Fail/Pending) and status. |
-| Scattered documentation | A single **REST API + database** behind one dashboard. Rooms, outlets, panels, cables, VLANs, and devices all reference each other. |
+| Spreadsheet cable logs | A **Cable Runs** table where every run is linked to its outlet, room, panel, and port — with test result (Pass/Fail/Pending) and status — plus **one-click CSV export** of the whole cable log. |
+| Scattered documentation | A single **REST API + database** behind one dashboard. Rooms, outlets, panels, cables, VLANs, and devices all reference each other, and a **global search** finds anything in seconds. |
 | IP guesswork | A **device/IP inventory** that records name, IP, MAC, VLAN, and location — the "source of truth" before you assign an address. |
-| No health visibility | **Live monitoring** that pings every tracked device on demand or all at once, reports **UP/DOWN** with round-trip time, and keeps per-device history. |
+| IP conflicts & mis-assignment | **Automatic detection** of duplicate IPs, devices outside their VLAN subnet, and devices squatting on a VLAN gateway — flagged on the dashboard and IP & VLAN views. |
+| No health visibility | **Live monitoring** that pings every tracked device on demand or all at once (**with auto-refresh**), reports **UP/DOWN** with round-trip time, and keeps per-device history. |
+| Incidents evaporating | An **Incidents log** with severity, status workflow (Open → In Progress → Resolved), and links to the affected device and outlet, with an open-issue counter on the dashboard. |
 | Documentation never finished | Updating records is a first-class action (add/edit/delete from the UI), and seeded demo data shows exactly how a well-documented network looks. |
 
 ### The dashboard ties it all together
 
 The landing tab aggregates the *state of the world*:
 
-- Counts of rooms, outlets, active cables, **failed cable tests**, patch panels, VLANs, and devices.
+- Counts of rooms, outlets, active cables, **failed cable tests**, patch panels, VLANs, devices, and **open incidents**.
+- **IP conflict alerts** at the top, so address problems are visible before they bite.
 - A live **uptime snapshot**: how many monitored devices are up vs. down right now.
+- A **recent incidents** panel, so active problems are never out of sight.
 
 This answers, in one screen: *"roughly how healthy is this network, and how much of it have we actually documented?"*
 
@@ -134,6 +142,24 @@ The physical layer is a chain: **Room → Outlet → Cable → Patch panel port 
 - Ping a **single device** any time, or **all devices** with one click.
 - Each check records **status** + **round-trip time** into a history table.
 - The **Monitoring tab** shows the latest status per device; clicking *history* shows the last 50 checks — so you can see *when* a device started failing, not just that it is failing.
+- Optional **auto-refresh** keeps the status table current every 15 seconds.
+
+### Module 4 — Incidents (the operational log)
+
+The human side of network health: every reported problem, tracked to closure.
+
+- **Incidents** carry a title, details, **severity** (Low/Medium/High), and a status workflow (**Open → In Progress → Resolved**).
+- Each incident can be linked to the **affected device** and/or **wall outlet**, so the operator sees immediately what infrastructure is implicated.
+- The dashboard shows an **open-issue counter** and a recent-incidents panel; the Incidents tab sorts active problems first and records a resolution timestamp.
+
+### Module 5 — Conflict & health alerts
+
+The Suite actively audits its own data:
+
+- **Duplicate IP detection** — two devices claiming the same address.
+- **Out-of-subnet detection** — a device whose IP lies outside its VLAN's subnet (CIDR-aware).
+- **Gateway squatting** — a non-router device using its VLAN's gateway address.
+- These are surfaced as alert banners on the Dashboard and IP & VLAN views, and counted on the dashboard.
 
 ---
 
@@ -156,6 +182,13 @@ The physical layer is a chain: **Room → Outlet → Cable → Patch panel port 
 5. Enable monitoring on the active switches.
 6. Documentation is *finished the day the work is* — and the dashboard shows all cables Active, no failed tests.
 
+**Scenario — an engineer arrives mid-crisis.**
+
+1. A user says printing is broken. The support log isn't a box of notes — it's the **Incidents** tab.
+2. *"Printer offline"* (High, Open, linked to Printer-01) is visible immediately, alongside the dashboard's **open-issue counter**.
+3. The **IP & VLAN** view warns that `Printer-01` and `Printer-02` are assigned the *same IP* — the likely root cause. One PATCH fixes the address.
+4. The incident is marked **Resolved**, a timestamp is recorded, and the printer issue stops being re-reported into the void.
+
 ---
 
 ## Features
@@ -163,21 +196,29 @@ The physical layer is a chain: **Room → Outlet → Cable → Patch panel port 
 ### Infrastructure Documentation
 - Rooms, wall outlets, patch panels, and cable runs in one relational model.
 - Cable metadata: ID, length, category, **test result** (Pass/Fail/Pending), status.
-- Full CRUD through the UI (add, delete, update).
+- Full CRUD through the UI (add, delete, update) + **one-click CSV export** of the cable log.
 
 ### IP & VLAN Administration
 - VLAN register: ID, name, subnet, gateway, description.
-- Device/IP inventory with MAC, VLAN binding, type, and location.
+- Device/IP inventory with MAC, VLAN binding, type, and location — with a per-device **monitor toggle**.
+- **Automatic audits**: duplicate IPs, out-of-subnet addresses, and gateway squatting.
 
 ### Live Monitoring
 - One-click/on-demand ICMP ping (single device or entire fleet).
 - **UP/DOWN** status + round-trip time (ms).
 - Per-device history (last 50 checks).
 - Routers and switches are always monitored; any device can be opted in.
+- Optional **auto-refresh** (15 s).
 
-### Dashboard
-- Aggregate counts including **failed cable tests** as a quality signal.
-- Live up/down uptime summary.
+### Incidents
+- Severity (Low/Medium/High) and status workflow (Open → In Progress → Resolved).
+- Links to the affected **device and/or outlet**, reporter attribution, resolution timestamps.
+- Open-issue counter + recent-incidents panel on the dashboard.
+
+### Search, Export & UX
+- **Global search** across devices, cables, outlets, rooms, VLANs, and incidents.
+- **CSV export** of the cable log and the device inventory — the spreadsheet replacement.
+- Notification toasts, empty states, and confirmation feedback throughout.
 
 ---
 
@@ -213,6 +254,8 @@ rooms 1───n outlets 1───n cable_runs n───1 patch_panels
         └──────────────n──────────────┘   (via patch_port)
 
 vlans 1───n devices
+issues n───1 devices   (device_id, nullable)
+issues n───1 outlets   (outlet_id, nullable)
 monitor_history n───1 devices   (device_id, status, rtt_ms, checked_at)
 ```
 
@@ -224,9 +267,10 @@ monitor_history n───1 devices   (device_id, status, rtt_ms, checked_at)
 | `cables` | The outlet↔port binding | **outlet_id**, **patch_panel_id**, patch_port, length_m, cable_type, test_result, status |
 | `vlans` | Logical network segments | vlan_id, name, subnet, gateway |
 | `devices` | Hardware + IP inventory | name, ip, device_type, **vlan_id**, mac, location, monitored |
+| `issues` | Support incidents (workflow log) | title, severity, status, **device_id**, **outlet_id**, reporter, resolved_at |
 | `monitor_history` | Ping results (append-only) | **device_id**, status, rtt_ms, checked_at |
 
-Foreign keys cascade deletes (e.g. deleting a room removes its outlets), and `monitor_history` is the only append-only table — it never overwrites, so trends stay visible.
+Foreign-key behaviour is deliberate: deleting a room **cascades** to its outlets while cable runs **survive** with a nulled outlet reference (`ON DELETE SET NULL`), preserving the cabling record. Incidents keep their text if a linked device is removed. `monitor_history` is append-only — it never overwrites, so trends stay visible.
 
 ---
 
@@ -238,6 +282,7 @@ Foreign keys cascade deletes (e.g. deleting a room removes its outlets), and `mo
 | Database    | SQLite via `better-sqlite3`                   |
 | Monitoring  | OS `ping` (ICMP) via `child_process`          |
 | Frontend    | Vanilla HTML5, CSS3, JavaScript (no build step) |
+| Tests       | Node.js built-in test runner (`node --test`)  |
 | Runtime     | Node.js ≥ 18                                   |
 
 ---
@@ -306,7 +351,11 @@ Tests run against an isolated temporary database (so your `network.db` is never 
 - **`monitored` normalization** — the string `"0"` must not enable monitoring,
 - **PATCH semantics** — updating only the fields provided,
 - **Live monitoring** — a real ping to `127.0.0.1` returning `up` with an RTT value,
-- **Dashboard** aggregates and uptime summary.
+- **Dashboard** aggregates and uptime summary,
+- **Incident lifecycle** — Create → In Progress → Resolved (with `resolved_at` stamped) → delete,
+- **Conflict detection** — a duplicate IP pair and an out-of-subnet device are both flagged,
+- **Global search** — finds incidents as well as devices/cables,
+- **CSV export** — headers of the cable log and device inventory.
 
 ---
 
@@ -319,15 +368,16 @@ Tests run against an isolated temporary database (so your `network.db` is never 
 │   ├── db.js               # Schema definition + connection factory
 │   ├── seed.js             # Demo-data loader
 │   ├── monitor.js          # ICMP ping wrapper
+│   ├── iputil.js           # IP/CIDR helpers + conflict detection
 │   ├── server.js           # Express app + REST API + static hosting
 │   └── test/
 │       └── api.test.js     # Automated API test suite (node:test)
 └── public/
     ├── index.html          # Single-page dashboard
     ├── css/
-    │   └── style.css       # Dark theme styling
+    │   └── style.css       # Professional dark theme
     └── js/
-        └── app.js          # Frontend logic (tabs, CRUD, monitoring)
+        └── app.js          # Frontend logic (views, CRUD, monitoring, search)
 ```
 
 ---
@@ -387,10 +437,30 @@ All endpoints return JSON and live under `http://localhost:8080/api`.
 | GET    | `/api/monitor/status`       | Latest status for every device         |
 | GET    | `/api/monitor/history/:id`  | Last 50 checks for a device            |
 
+### Incidents
+| Method | Path              | Description                                      |
+|--------|-------------------|--------------------------------------------------|
+| GET    | `/api/issues`     | List incidents (active first)                    |
+| POST   | `/api/issues`     | Create incident                                  |
+| PATCH  | `/api/issues/:id` | Update status/severity/detail (`resolved_at` set on Resolved/Closed) |
+| DELETE | `/api/issues/:id` | Delete incident                                  |
+
+### Audits & Search
+| Method | Path             | Description                                             |
+|--------|------------------|---------------------------------------------------------|
+| GET    | `/api/conflicts` | Duplicate IPs, out-of-subnet devices, gateway squatting |
+| GET    | `/api/search?q=` | Global search across all entities                       |
+
+### Exports
+| Method | Path                        | Description                       |
+|--------|-----------------------------|-----------------------------------|
+| GET    | `/api/export/cables.csv`    | Cable log as a CSV spreadsheet    |
+| GET    | `/api/export/devices.csv`   | Device/IP inventory as CSV        |
+
 ### Dashboard
 | Method | Path            | Description                         |
 |--------|-----------------|-------------------------------------|
-| GET    | `/api/dashboard`| Aggregate counts + uptime summary   |
+| GET    | `/api/dashboard`| Aggregate counts + uptime + open issues |
 
 **Example — create a device:**
 ```bash
@@ -420,7 +490,7 @@ Monitoring uses the operating system's `ping` command — the same tool a techni
 
 ## Demo data
 
-`npm run seed` loads a realistic office network that exercises every module and references every one of your internship's themes — cabling (T568 crimping, labeling, testing), VLANs (departmental segmentation), and routing/switching:
+`npm run seed` loads a realistic office network that exercises every module and references every one of your internship's themes — cabling (T568 crimping, labeling, testing), VLANs (departmental segmentation), routing/switching, AND real troubleshooting:
 
 | Entity        | Demo entries                                                      |
 |---------------|-------------------------------------------------------------------|
@@ -428,20 +498,25 @@ Monitoring uses the operating system's `ping` command — the same tool a techni
 | Outlets       | A-101, A-102, B-201, B-202, S-301                                  |
 | Patch Panels  | Core Patch Panel (24 ports)                                        |
 | Cables        | A-101 … S-301 — all tested **Pass**, status Active                 |
-| VLANs         | 10 Admin, 20 ICT_Networking, 99 Infrastructure                     |
-| Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, FileServer, WEB-SRV-01 |
+| VLANs         | 10 Admin (192.168.10.0/24), 20 ICT_Networking (192.168.20.0/24), 99 Infrastructure (192.168.99.0/24) |
+| Devices       | Router, CoreSwitch, AccessSwitchA, AdminPC-01, ICT-PC-01, **WEB-SRV-01**, FileServer, Printer-01, **Printer-02**, HR-PC-01 |
+| Issues        | High-file-server-down (Open), Medium-slow-internet (In Progress), Low-printer-paper (Resolved) |
+
+The seed *deliberately* includes two live problems so the audit feature is immediately demonstrable:
+
+- **Duplicate IP** — `Printer-01` and `Printer-02` share `192.168.20.25`.
+- **Out-of-subnet** — `HR-PC-01` (192.168.30.10) sits outside the VLAN 10 subnet (192.168.10.0/24).
 
 ---
 
 ## Ideas for Extensions
 
 - **Authentication & roles** — admin vs. view-only access.
-- **Auto-refresh monitoring** — scheduled checks (`setInterval`) pushed via WebSockets/SSE.
-- **Alerts** — email/Telegram notifications when a watched device goes down.
+- **Alerts** — email/Telegram notifications when a watched device goes down or a new incident is opened.
 - **Rack diagram** — visual rack/patch-panel mapping (panel port → outlet).
-- **CSV/Excel export** — generate the cable log as a spreadsheet for sharing.
 - **Network discovery** — integrate `arp`/`nmap` to auto-suggest devices on the LAN.
-- **Inter-VLAN routing view** — mirror the router-on-a-stick design with dotted-1Q sub-interfaces.
+- **Inter-VLAN routing view** — mirror the router-on-a-stick design with dot1q sub-interfaces.
+- **Scheduler** — persist periodic checks to a schedule (the UI auto-refresh already re-pings on a 15 s interval).
 
 ---
 
