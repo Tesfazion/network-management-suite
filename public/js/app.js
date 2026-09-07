@@ -1350,7 +1350,7 @@ function showSetup(mode) {
   document.querySelector('.setup-box h1').textContent = welcome
     ? 'Welcome to the Network Management Suite'
     : 'Organization settings';
-  document.querySelector('.setup-box p').textContent = welcome
+  document.querySelector('.setup-box > p').textContent = welcome
     ? 'Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.'
     : 'Change the organization name shown in this console. (Loading demo data is not available here — it would replace existing entries.)';
   $('#setupStart').textContent = welcome ? 'Start using the Suite' : 'Save settings';
@@ -1363,12 +1363,15 @@ function showSetup(mode) {
  * Submit the setup form (org name + optional demo data).
  */
 async function saveSetup() {
-  const org = $('#setupOrg').value.trim() || 'Network Management Suite';
-  const demo = setupMode === 'welcome' && $('#setupDemo').checked;
-  const btn = $('#setupStart');
-  btn.disabled = true;
   try {
-    await api('/api/setup', { method: 'POST', body: JSON.stringify({ org_name: org, demo }) });
+    console.log('saveSetup called');
+    const org = $('#setupOrg').value.trim() || 'Network Management Suite';
+    const demo = setupMode === 'welcome' && $('#setupDemo').checked;
+    const btn = $('#setupStart');
+    console.log('saveSetup values:', { org, demo, btn: !!btn });
+    btn.disabled = true;
+    const result = await api('/api/setup', { method: 'POST', body: JSON.stringify({ org_name: org, demo }) });
+    console.log('saveSetup API result:', result);
     applyOrgBranding(org);
     orgSettings.org_name = org;
     $('#setupScreen').hidden = true;
@@ -1376,27 +1379,37 @@ async function saveSetup() {
     await warmCaches();
     goTab(currentTab);
   } catch (e) {
-    toast(e.message, 'err');
+    console.error('saveSetup error:', e);
+    toast(e.message || 'Setup failed', 'err');
   } finally {
-    btn.disabled = false;
+    const btn = $('#setupStart');
+    if (btn) btn.disabled = false;
   }
 }
 
 $('#setupStart').addEventListener('click', saveSetup);
+console.log('setupStart listener attached');
 $('#setupScreen').addEventListener('click', (e) => { if (e.target === $('#setupScreen')) $('#setupStart').focus(); });
 $('#setupOrg').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSetup(); });
 $('.sidebar-foot').addEventListener('click', () => showSetup('settings'));
 
 // ---------- Init ----------
 window.addEventListener('DOMContentLoaded', async () => {
-  const setup = await api('/api/setup');
-  const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
-    .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
-  currentTab = tab;
-  if (!setup.configured) { showSetup('welcome'); return; }
-  orgSettings = { org_name: setup.org_name };
-  applyOrgBranding(setup.org_name);
-  $('#setupScreen').hidden = true;
-  await warmCaches();
-  goTab(tab);
+  console.log('DOMContentLoaded fired');
+  try {
+    const setup = await api('/api/setup?t=' + Date.now());
+    console.log('Setup API response:', setup);
+    const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
+      .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
+    currentTab = tab;
+    if (!setup.configured) { showSetup('welcome'); return; }
+    orgSettings = { org_name: setup.org_name };
+    applyOrgBranding(setup.org_name);
+    $('#setupScreen').hidden = true;
+    await warmCaches();
+    goTab(tab);
+  } catch (e) {
+    console.error('Init error:', e);
+    toast('Failed to load app data: ' + (e.message || e), 'err');
+  }
 });

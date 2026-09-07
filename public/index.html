@@ -243,19 +243,21 @@
   <div id="setupScreen" class="setup" hidden>
     <div class="setup-box">
       <div class="setup-brand" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
           <path d="M7.5 7.5 10.5 15.8M16.5 7.5l-4.5 8.3M8.5 6h7.2"/>
         </svg>
       </div>
       <h1>Welcome to the Network Management Suite</h1>
-      <p class="muted">Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.</p>
+      <p>Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.</p>
       <div class="field">
         <label for="setupOrg">Organization name</label>
         <input id="setupOrg" type="text" placeholder="e.g. Wolayita Zone Innovation and Technology Office" autocomplete="organization" required>
       </div>
       <label class="check"><input type="checkbox" id="setupDemo" checked> <span>Load a demonstration office network to explore every feature</span></label>
       <button class="btn primary full" id="setupStart">Start using the Suite</button>
+      <div class="setup-divider"></div>
+      <div class="setup-hint">Your data stays local in a single SQLite file. No account or internet required after setup.</div>
     </div>
   </div>
 
