@@ -1,20 +1,32 @@
 {
   "name": "network-management-suite",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Web application for documenting, administering, and monitoring office network infrastructure: cabling, patch panels, IP/VLAN inventory, and live device monitoring.",
-  "main": "server/index.js",
+  "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
     "setup": "node scripts/setup.js",
     "seed": "node server/seed.js",
     "test": "node --test"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "network-management",
+    "infrastructure",
+    "monitoring",
+    "vlan",
+    "ip-management",
+    "network-documentation"
+  ],
+  "author": "Wolayita Zone Innovation and Technology Office",
+  "license": "MIT",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "dotenv": "^16.4.7"
   }
 }

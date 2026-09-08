@@ -91,6 +91,61 @@ test('PATCH updates only the fields provided and normalizes monitored', async ()
   assert.strictEqual(updated.monitored, 0);
 });
 
+test('PATCH rooms, outlets, patch panels and VLANs edits existing records', async () => {
+  const { data: room } = await req('POST', '/rooms', { name: 'Edit Room', floor: '1' });
+  const { data: rUpdated } = await req('PATCH', `/rooms/${room.id}`, { name: 'Renamed', purpose: 'Lab' });
+  assert.strictEqual(rUpdated.name, 'Renamed');
+  assert.strictEqual(rUpdated.purpose, 'Lab');
+  assert.strictEqual(rUpdated.floor, '1');
+
+  const { data: outlet } = await req('POST', '/outlets', { room_id: room.id, label: 'E-1', location: 'North wall' });
+  const { data: oUpdated } = await req('PATCH', `/outlets/${outlet.id}`, { label: 'E-2' });
+  assert.strictEqual(oUpdated.label, 'E-2');
+  assert.strictEqual(oUpdated.location, 'North wall');
+
+  const { data: panel } = await req('POST', '/patchpanels', { name: 'PP1', ports: 24 });
+  const { data: pUpdated } = await req('PATCH', `/patchpanels/${panel.id}`, { ports: 48 });
+  assert.strictEqual(pUpdated.ports, 48);
+
+  const { data: vlan } = await req('POST', '/vlans', { vlan_id: 555, name: 'EditVLAN', subnet: '192.168.5.0/24' });
+  const { data: vUpdated } = await req('PATCH', `/vlans/${vlan.id}`, { gateway: '192.168.5.1', name: 'RenamedVLAN' });
+  assert.strictEqual(vUpdated.gateway, '192.168.5.1');
+  assert.strictEqual(vUpdated.name, 'RenamedVLAN');
+  assert.strictEqual(vUpdated.vlan_id, 555);
+});
+
+test('PATCH cables supports full-field updates', async () => {
+  const { data: room } = await req('POST', '/rooms', { name: 'CableRoom' });
+  const { data: outlet } = await req('POST', '/outlets', { room_id: room.id, label: 'C-1' });
+  const { data: panel } = await req('POST', '/patchpanels', { name: 'CablePP' });
+  const { data: cable } = await req('POST', '/cables', {
+    cable_id: 'C-1', outlet_id: outlet.id, patch_panel_id: panel.id, test_result: 'Pending',
+  });
+
+  const { data: updated } = await req('PATCH', `/cables/${cable.id}`, {
+    test_result: 'Pass', status: 'Active', length_m: 22.5, patch_port: '11',
+  });
+  assert.strictEqual(updated.test_result, 'Pass');
+  assert.strictEqual(updated.length_m, 22.5);
+  assert.strictEqual(updated.patch_port, '11');
+});
+
+test('PATCH devices can clear a nullable VLAN assignment', async () => {
+  const { data: vlan } = await req('POST', '/vlans', { vlan_id: 888, name: 'ClearVLAN', subnet: '192.168.8.0/24' });
+  const { data: d } = await req('POST', '/devices', { name: 'ClearMe', ip: '192.168.8.10', vlan_id: vlan.id });
+  assert.strictEqual(d.vlan_id, vlan.id);
+
+  const { data: cleared } = await req('PATCH', `/devices/${d.id}`, { vlan_id: null });
+  assert.strictEqual(cleared.vlan_id, null);
+  assert.strictEqual(cleared.name, 'ClearMe');
+});
+
+test('PATCH issues can clear a linked device', async () => {
+  const { data: issue } = await req('POST', '/issues', { title: 'Link test', status: 'Open' });
+  const { data: updated } = await req('PATCH', `/issues/${issue.id}`, { device_id: null });
+  assert.strictEqual(updated.device_id, null);
+});
+
 test('live monitoring pings a device and records history', async () => {
   const { data: dev } = await req('POST', '/devices', { name: 'Loopback', ip: '127.0.0.1', monitored: '1' });
   const { data: check } = await req('POST', `/monitor/check/${dev.id}`);

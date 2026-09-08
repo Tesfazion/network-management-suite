@@ -53,6 +53,10 @@ router.patch('/issues/:id', (req, res) => {
   if (!issue) throw notFound();
   const input = issueInput(req.body, issue);
 
+  // Blank optional relationships are cleared to NULL by the frontend
+  const deviceId = input.device_id === null ? null : (input.device_id || issue.device_id);
+  const outletId = input.outlet_id === null ? null : (input.outlet_id || issue.outlet_id);
+
   // Auto-stamp resolved_at when status moves to a terminal state.
   const resolvedAt = (input.status === 'Resolved' || input.status === 'Closed')
     ? (issue.resolved_at || new Date().toISOString().slice(0, 19).replace('T', ' '))
@@ -60,10 +64,10 @@ router.patch('/issues/:id', (req, res) => {
 
   db.prepare(`UPDATE issues SET
     title=COALESCE(?,title), description=COALESCE(?,description), severity=COALESCE(?,severity),
-    status=?, device_id=COALESCE(?,device_id), outlet_id=COALESCE(?,outlet_id),
+    status=?, device_id=?, outlet_id=?,
     reporter=COALESCE(?,reporter), resolved_at=? WHERE id=?`)
-    .run(input.title, input.description, input.severity, input.status,
-      input.device_id, input.outlet_id, input.reporter || null, resolvedAt, req.params.id);
+    .run(input.title || null, input.description || null, input.severity,
+      input.status, deviceId, outletId, input.reporter || null, resolvedAt, req.params.id);
   res.json(db.prepare('SELECT * FROM issues WHERE id=?').get(req.params.id));
 });
 

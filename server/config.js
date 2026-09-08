@@ -1,4 +1,15 @@
 const path = require('path');
+const fs = require('fs');
+
+// Load .env file if it exists
+const envPath = path.join(__dirname, '..', '.env');
+if (fs.existsSync(envPath)) {
+  try {
+    require('dotenv').config({ path: envPath });
+  } catch (err) {
+    console.warn('dotenv not installed, skipping .env file loading');
+  }
+}
 
 /**
  * Parse an environment variable as a positive integer, with a fallback default.

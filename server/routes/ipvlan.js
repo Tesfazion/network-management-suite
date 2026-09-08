@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../db');
-const { notFound } = require('../lib/errors');
+const { notFound, badRequest } = require('../lib/errors');
 const { ipConflicts } = require('../lib/iputil');
 const validation = require('../lib/validation');
 
@@ -14,7 +14,6 @@ router.get('/vlans', (req, res) => {
 router.post('/vlans', (req, res) => {
   const vlan_id = validation.optionalInt(req.body.vlan_id);
   if (vlan_id === null || vlan_id < 1 || vlan_id > 4094) {
-    const { badRequest } = require('../lib/errors');
     throw badRequest('vlan_id must be an integer between 1 and 4094');
   }
   const name = validation.textRequired(req.body.name, validation.LIMITS.name, 'name');
@@ -25,6 +24,27 @@ router.post('/vlans', (req, res) => {
   const r = db.prepare('INSERT INTO vlans (vlan_id, name, subnet, gateway, description) VALUES (?,?,?,?,?)')
     .run(vlan_id, name, subnet, gateway, description || null);
   res.json(db.prepare('SELECT * FROM vlans WHERE id=?').get(r.lastInsertRowid));
+});
+
+router.patch('/vlans/:id', (req, res) => {
+  const vlan = db.prepare('SELECT * FROM vlans WHERE id=?').get(req.params.id);
+  if (!vlan) throw notFound();
+  const body = req.body;
+  const vlan_id = body.vlan_id === undefined ? vlan.vlan_id : validation.optionalInt(body.vlan_id);
+  if (vlan_id === null || vlan_id < 1 || vlan_id > 4094) {
+    throw badRequest('vlan_id must be an integer between 1 and 4094');
+  }
+  const name = body.name === undefined
+    ? vlan.name
+    : validation.textRequired(body.name, validation.LIMITS.name, 'name');
+  const subnet = body.subnet === undefined ? vlan.subnet : validation.optionalSubnet(body.subnet);
+  const gateway = body.gateway === undefined ? vlan.gateway : validation.optionalIp(body.gateway, 'gateway');
+  const description = body.description === undefined
+    ? vlan.description
+    : (validation.text(body.description, validation.LIMITS.description) || null);
+  db.prepare('UPDATE vlans SET vlan_id=?, name=?, subnet=?, gateway=?, description=? WHERE id=?')
+    .run(vlan_id, name, subnet, gateway, description, req.params.id);
+  res.json(db.prepare('SELECT * FROM vlans WHERE id=?').get(req.params.id));
 });
 
 // ---- Devices ----------------------------------------------------------
@@ -57,22 +77,23 @@ router.patch('/devices/:id', (req, res) => {
   const device = db.prepare('SELECT * FROM devices WHERE id=?').get(req.params.id);
   if (!device) throw notFound();
   const body = req.body;
-  const name = body.name === undefined ? undefined : validation.text(body.name, validation.LIMITS.name);
-  const ip = body.ip === undefined ? undefined : validation.optionalIp(body.ip);
-  const device_type = body.device_type === undefined
-    ? undefined
-    : validation.oneOf(body.device_type, DEVICE_TYPES, device.device_type, 'device_type');
-  const vlan_id = body.vlan_id === undefined ? undefined : validation.optionalId(body.vlan_id, 'vlan_id');
-  const mac = body.mac === undefined ? undefined : validation.text(body.mac, validation.LIMITS.mac);
-  const location = body.location === undefined ? undefined : validation.text(body.location, validation.LIMITS.location);
-  const monitored = body.monitored === undefined ? undefined : validation.boolFlag(body.monitored);
+  const fields = {};
+  if (body.name !== undefined) fields.name = validation.textRequired(body.name, validation.LIMITS.name, 'name');
+  if (body.ip !== undefined) fields.ip = validation.optionalIp(body.ip);
+  if (body.device_type !== undefined) fields.device_type = validation.oneOf(body.device_type, DEVICE_TYPES, device.device_type, 'device_type');
+  if (body.vlan_id !== undefined) fields.vlan_id = validation.optionalId(body.vlan_id, 'vlan_id');
+  if (body.mac !== undefined) fields.mac = validation.text(body.mac, validation.LIMITS.mac);
+  if (body.location !== undefined) fields.location = validation.text(body.location, validation.LIMITS.location);
+  if (body.monitored !== undefined) fields.monitored = validation.boolFlag(body.monitored);
 
-  db.prepare(`UPDATE devices SET
-    name=COALESCE(?,name), ip=COALESCE(?,ip), device_type=COALESCE(?,device_type),
-    vlan_id=COALESCE(?,vlan_id), mac=COALESCE(?,mac), location=COALESCE(?,location),
-    monitored=COALESCE(?,monitored) WHERE id=?`)
-    .run(name ?? null, ip ?? null, device_type ?? null, vlan_id ?? null,
-      mac ?? null, location ?? null, monitored ?? null, req.params.id);
+  if (Object.keys(fields).length === 0) return res.json(device);
+  const sets = Object.keys(fields).map((k) => `${k}=?`).join(', ');
+  // Mirror POST semantics: blank optional fields are stored as NULL.
+  const values = Object.keys(fields).map((k) => {
+    const v = fields[k];
+    return v === '' ? null : v;
+  });
+  db.prepare(`UPDATE devices SET ${sets} WHERE id=?`).run(...values, req.params.id);
   res.json(db.prepare('SELECT * FROM devices WHERE id=?').get(req.params.id));
 });
 

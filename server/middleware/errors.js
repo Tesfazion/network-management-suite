@@ -1,3 +1,5 @@
+const logger = require('../lib/logger');
+
 function notFoundHandler(req, res) {
   res.status(404).json({ error: 'not found' });
 }
@@ -22,8 +24,10 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
 
   // Never leak internals for 5xx; log to the server console instead.
   if (status >= 500) {
-    console.error(`[error] ${req.method} ${req.originalUrl}`, err);
+    logger.error(`${req.method} ${req.originalUrl}`, { error: err.message, stack: err.stack });
     message = 'internal server error';
+  } else {
+    logger.warn(`${req.method} ${req.originalUrl} - ${status}`, { error: message });
   }
 
   res.status(status).json({ error: message });

@@ -1,5 +1,6 @@
 # Network Management Suite
 
+![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat)
 ![Node.js](https://img.shields.io/badge/Node.js-Express%205-339933?style=flat)
 ![Database](https://img.shields.io/badge/SQLite-better--sqlite3-blue?style=flat)
 ![Frontend](https://img.shields.io/badge/Frontend-Vanilla%20JS-orange?style=flat)
@@ -7,39 +8,34 @@
 
 **Document · Administer · Monitor**
 
-A self-hosted web platform for documenting, administering, and monitoring office network infrastructure. Built during a 9-week networking internship at the Wolayita Zone Innovation and Technology office (South Ethiopia Region).
+A self-hosted web platform for documenting, administering, and monitoring network infrastructure.
 
 ---
 
-## What It Does
+## Features
 
-The Suite replaces spreadsheet-based cable logs, hand-written IP records, and scattered documentation with a single integrated dashboard.
-
-| Area | What It Records |
-|------|-----------------|
+| Area | Capabilities |
+|------|--------------|
 | **Physical** | Cabling plant: rooms, outlets, patch panels, cable runs |
 | **Logical** | VLAN design, device inventory with IP/MAC/VLAN bindings |
-| **Live** | Device health via ICMP ping, RTT, and history |
-| **Operational** | Incidents and support requests with lifecycle tracking |
-
-## Who It's For
-
-- **Network technicians** wiring buildings and needing clean documentation
-- **SMEs and government offices** running small–medium LANs
-- **Students** studying full-stack development with a realistic project
-- **IT teams** still using spreadsheets for network inventory
+| **Live** | Device health monitoring via ICMP ping with RTT and history |
+| **Operational** | Incident tracking with lifecycle management |
 
 ## Key Features
 
 - **Infrastructure Documentation** — Rooms, outlets, patch panels, cable runs with test results (Pass/Fail/Pending)
 - **IP & VLAN Administration** — VLAN register, device inventory with MAC and location, per-device monitoring toggle
-- **Live Monitoring** — One-click ICMP ping, UP/DOWN status, RTT, per-device history, optional auto-refresh
+- **Full CRUD Editing** — Create, edit, and delete every entity (rooms, outlets, panels, cables, VLANs, devices, incidents) from the UI
+- **Live Monitoring** — One-click ICMP ping, UP/DOWN status, RTT, per-device history, optional auto-refresh, and live up/down summary
 - **Incident Tracking** — Open → In Progress → Resolved workflow with severity, linked devices/outlets, and resolution timestamps
 - **Conflict Detection** — Automatic alerts for duplicate IPs, out-of-subnet devices, and gateway squatting
 - **Visual Diagram Editor** — Drag-and-drop SVG canvas with zones, device icons, live status coloring, and auto-save
 - **Global Search** — Search across devices, cables, outlets, rooms, VLANs, and incidents
 - **CSV Export** — One-click export of cable log and device inventory
 - **Setup Wizard** — First-run organization branding and optional demo data loading
+- **Enhanced Logging** — Comprehensive request/response logging with timestamps and severity levels
+- **Environment Configuration** — Support for .env files for easy configuration management
+- **Development Mode** — Hot-reload development server with `npm run dev`
 
 ---
 
@@ -95,7 +91,19 @@ npm start
 
 Open your browser at **http://localhost:8080**.
 
+For development with auto-reload:
+
+```bash
+npm run dev
+```
+
 ### Environment Variables
+
+You can configure the application using environment variables. Copy `.env.example` to `.env` and customize:
+
+```bash
+cp .env.example .env
+```
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -104,17 +112,18 @@ Open your browser at **http://localhost:8080**.
 | `AUTH_TOKEN` | _(none)_ | Bearer token for API protection |
 | `DATABASE_PATH` | `./network.db` | SQLite file location |
 | `BODY_LIMIT` | `1mb` | JSON body size limit |
+| `NODE_ENV` | `development` | Environment mode (development/production) |
 
 ---
 
 ## First-Run Setup
 
-On first launch, the app shows a setup wizard:
+On first launch, the application will prompt for initial configuration:
 
-1. Enter your **organization name** (shown in the sidebar and browser title)
-2. Optionally load the **demonstration network** to explore every feature
+1. Enter your **organization name**
+2. Optionally load **demonstration data**
 
-You can also configure the organization later from the sidebar footer, or headlessly:
+You can also configure the organization via command line:
 
 ```bash
 npm run setup -- --org="Acme Office Network" --demo
@@ -189,6 +198,7 @@ All endpoints return JSON under `/api`.
 |--------|------|-------------|
 | GET | `/api/rooms` | List rooms |
 | POST | `/api/rooms` | Create room |
+| PATCH | `/api/rooms/:id` | Update room |
 | DELETE | `/api/rooms/:id` | Delete room (cascade) |
 
 ### Outlets
@@ -196,6 +206,7 @@ All endpoints return JSON under `/api`.
 |--------|------|-------------|
 | GET | `/api/outlets` | List outlets |
 | POST | `/api/outlets` | Create outlet |
+| PATCH | `/api/outlets/:id` | Update outlet |
 | DELETE | `/api/outlets/:id` | Delete outlet |
 
 ### Patch Panels
@@ -203,6 +214,7 @@ All endpoints return JSON under `/api`.
 |--------|------|-------------|
 | GET | `/api/patchpanels` | List panels |
 | POST | `/api/patchpanels` | Create panel |
+| PATCH | `/api/patchpanels/:id` | Update panel |
 | DELETE | `/api/patchpanels/:id` | Delete panel |
 
 ### Cables
@@ -210,7 +222,7 @@ All endpoints return JSON under `/api`.
 |--------|------|-------------|
 | GET | `/api/cables` | List cable runs |
 | POST | `/api/cables` | Create cable run |
-| PATCH | `/api/cables/:id` | Update test result / status |
+| PATCH | `/api/cables/:id` | Update test result / status / full fields |
 | DELETE | `/api/cables/:id` | Delete cable run |
 
 ### VLANs
@@ -218,6 +230,7 @@ All endpoints return JSON under `/api`.
 |--------|------|-------------|
 | GET | `/api/vlans` | List VLANs |
 | POST | `/api/vlans` | Create VLAN |
+| PATCH | `/api/vlans/:id` | Update VLAN |
 
 ### Devices
 | Method | Path | Description |
@@ -330,14 +343,10 @@ sudo systemctl enable --now nms
 |---------|-------|-----|
 | `npm install` fails on Windows | `better-sqlite3` needs build tools | Install Visual Studio Build Tools or use WSL |
 | Port 8080 in use | Another process | Set `PORT=9090 npm start` |
-| Ping checks always `down` on demo data | Demo uses private IPs | Add a device with IP `127.0.0.1` to verify |
-| Database locked | Server still running | Stop the server before deleting `network.db*` |
-| Setup wizard loops | Corrupt database | Delete `network.db*` and restart |
+| Database locked | Server still running | Stop the server before deleting database files |
 
 ---
 
 ## License
 
 MIT License — see the [LICENSE](LICENSE) file for details.
-
-Created as part of a Computer Science internship report (Dilla University, 2026) and shared for educational and demonstration purposes.

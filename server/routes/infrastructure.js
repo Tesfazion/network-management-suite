@@ -19,6 +19,23 @@ router.post('/rooms', (req, res) => {
   res.json(db.prepare('SELECT * FROM rooms WHERE id=?').get(r.lastInsertRowid));
 });
 
+router.patch('/rooms/:id', (req, res) => {
+  const room = db.prepare('SELECT * FROM rooms WHERE id=?').get(req.params.id);
+  if (!room) throw notFound();
+  const name = req.body.name === undefined
+    ? room.name
+    : validation.textRequired(req.body.name, validation.LIMITS.name, 'name');
+  const floor = req.body.floor === undefined
+    ? room.floor
+    : (validation.text(req.body.floor, validation.LIMITS.label) || null);
+  const purpose = req.body.purpose === undefined
+    ? room.purpose
+    : (validation.text(req.body.purpose, 120) || null);
+  db.prepare('UPDATE rooms SET name=?, floor=?, purpose=? WHERE id=?')
+    .run(name, floor, purpose, req.params.id);
+  res.json(db.prepare('SELECT * FROM rooms WHERE id=?').get(req.params.id));
+});
+
 router.delete('/rooms/:id', (req, res) => {
   db.prepare('DELETE FROM rooms WHERE id=?').run(req.params.id);
   res.json({ ok: true });
@@ -41,6 +58,23 @@ router.post('/outlets', (req, res) => {
   res.json(db.prepare('SELECT * FROM outlets WHERE id=?').get(r.lastInsertRowid));
 });
 
+router.patch('/outlets/:id', (req, res) => {
+  const outlet = db.prepare('SELECT * FROM outlets WHERE id=?').get(req.params.id);
+  if (!outlet) throw notFound();
+  const room_id = req.body.room_id === undefined
+    ? outlet.room_id
+    : validation.requiredId(req.body.room_id, 'room_id');
+  const label = req.body.label === undefined
+    ? outlet.label
+    : validation.textRequired(req.body.label, validation.LIMITS.label, 'label');
+  const location = req.body.location === undefined
+    ? outlet.location
+    : (validation.text(req.body.location, validation.LIMITS.location) || null);
+  db.prepare('UPDATE outlets SET room_id=?, label=?, location=? WHERE id=?')
+    .run(room_id, label, location, req.params.id);
+  res.json(db.prepare('SELECT * FROM outlets WHERE id=?').get(req.params.id));
+});
+
 router.delete('/outlets/:id', (req, res) => {
   db.prepare('DELETE FROM outlets WHERE id=?').run(req.params.id);
   res.json({ ok: true });
@@ -58,6 +92,23 @@ router.post('/patchpanels', (req, res) => {
   const r = db.prepare('INSERT INTO patch_panels (name, location, ports) VALUES (?,?,?)')
     .run(name, location || null, ports ?? 24);
   res.json(db.prepare('SELECT * FROM patch_panels WHERE id=?').get(r.lastInsertRowid));
+});
+
+router.patch('/patchpanels/:id', (req, res) => {
+  const panel = db.prepare('SELECT * FROM patch_panels WHERE id=?').get(req.params.id);
+  if (!panel) throw notFound();
+  const name = req.body.name === undefined
+    ? panel.name
+    : validation.textRequired(req.body.name, validation.LIMITS.name, 'name');
+  const location = req.body.location === undefined
+    ? panel.location
+    : (validation.text(req.body.location, validation.LIMITS.location) || null);
+  const ports = req.body.ports === undefined
+    ? panel.ports
+    : (validation.optionalInt(req.body.ports) ?? panel.ports);
+  db.prepare('UPDATE patch_panels SET name=?, location=?, ports=? WHERE id=?')
+    .run(name, location, ports, req.params.id);
+  res.json(db.prepare('SELECT * FROM patch_panels WHERE id=?').get(req.params.id));
 });
 
 // ---- Cable runs -----------------------------------------------------
@@ -97,13 +148,21 @@ router.post('/cables', (req, res) => {
 router.patch('/cables/:id', (req, res) => {
   const cable = db.prepare('SELECT * FROM cables WHERE id=?').get(req.params.id);
   if (!cable) throw notFound();
-  const test_result = req.body.test_result === undefined
-    ? cable.test_result
-    : validation.oneOf(req.body.test_result, TEST_RESULTS, cable.test_result, 'test_result');
-  const status = req.body.status === undefined
-    ? cable.status
-    : validation.oneOf(req.body.status, CABLE_STATUSES, cable.status, 'status');
-  db.prepare('UPDATE cables SET test_result=?, status=? WHERE id=?').run(test_result, status, req.params.id);
+  const body = req.body;
+  const fields = {};
+  if (body.cable_id !== undefined) fields.cable_id = validation.textRequired(body.cable_id, validation.LIMITS.label, 'cable_id');
+  if (body.outlet_id !== undefined) fields.outlet_id = validation.optionalId(body.outlet_id, 'outlet_id');
+  if (body.patch_panel_id !== undefined) fields.patch_panel_id = validation.optionalId(body.patch_panel_id, 'patch_panel_id');
+  if (body.patch_port !== undefined) fields.patch_port = validation.text(body.patch_port, validation.LIMITS.label);
+  if (body.length_m !== undefined) fields.length_m = validation.optionalNum(body.length_m);
+  if (body.cable_type !== undefined) fields.cable_type = validation.text(body.cable_type, 16);
+  if (body.test_result !== undefined) fields.test_result = validation.oneOf(body.test_result, TEST_RESULTS, cable.test_result, 'test_result');
+  if (body.status !== undefined) fields.status = validation.oneOf(body.status, CABLE_STATUSES, cable.status, 'status');
+  if (body.notes !== undefined) fields.notes = validation.text(body.notes, validation.LIMITS.notes);
+
+  if (Object.keys(fields).length === 0) return res.json(cable);
+  const sets = Object.keys(fields).map((k) => `${k}=?`).join(', ');
+  db.prepare(`UPDATE cables SET ${sets} WHERE id=?`).run(...Object.values(fields), req.params.id);
   res.json(db.prepare('SELECT * FROM cables WHERE id=?').get(req.params.id));
 });
 

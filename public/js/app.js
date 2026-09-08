@@ -131,16 +131,24 @@ $('#content').addEventListener('click', (e) => {
 });
 
 /**
- * Dispatch tab content loading.
+ * Dispatch tab content loading with error handling.
  * @param {string} name
  */
 function loadTab(name) {
-  if (name === 'dashboard') loadDashboard();
-  else if (name === 'infrastructure') loadInfrastructure();
-  else if (name === 'ipvlan') loadIpVlan();
-  else if (name === 'monitoring') loadMonitoring();
-  else if (name === 'incidents') loadIncidents();
-  else if (name === 'diagram') loadDiagram();
+  const loaders = {
+    dashboard: loadDashboard,
+    infrastructure: loadInfrastructure,
+    ipvlan: loadIpVlan,
+    monitoring: loadMonitoring,
+    incidents: loadIncidents,
+    diagram: loadDiagram,
+  };
+  const loader = loaders[name];
+  if (!loader) return;
+  loader().catch((e) => {
+    console.error('Error loading tab:', name, e);
+    toast((e && e.message) || 'Failed to load data', 'err');
+  });
 }
 
 // ---------- Dashboard ----------
@@ -188,7 +196,6 @@ async function loadDashboard() {
   const dBody = el('div'); dBody.append(el('div', 'c-num', u.down), el('div', 'c-label', 'Devices down'));
   downCard.append(dBody);
   uptime.append(upCard, downCard);
-  if (u.total === 0) uptime.append(...[]);
   $('#dashUptime').replaceChildren(u.total === 0 ? el('div', 'muted', 'No monitored devices yet. Open Monitoring and run a check.') : uptime);
 
   $('#dashConflicts').replaceChildren(...conflictsBlock(conflicts));
@@ -251,9 +258,7 @@ async function loadInfrastructure() {
     ? rooms.map((r) => {
         const tr = el('tr');
         tr.append(el('td', '', r.name), el('td', '', r.floor || '—'), el('td', '', r.purpose || '—'));
-        const act = el('td', '');
-        act.append(delBtn(() => api('/api/rooms/' + r.id, { method: 'DELETE' })));
-        tr.append(act);
+        tr.append(rowActions('rooms', r, () => api('/api/rooms/' + r.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No rooms documented yet.')]));
@@ -262,9 +267,7 @@ async function loadInfrastructure() {
     ? outlets.map((o) => {
         const tr = el('tr');
         tr.append(el('td', '', o.label), el('td', '', o.location || '—'), el('td', '', o.room_name));
-        const act = el('td', '');
-        act.append(delBtn(() => api('/api/outlets/' + o.id, { method: 'DELETE' })));
-        tr.append(act);
+        tr.append(rowActions('outlets', o, () => api('/api/outlets/' + o.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No wall outlets documented yet.')]));
@@ -273,9 +276,7 @@ async function loadInfrastructure() {
     ? panels.map((p) => {
         const tr = el('tr');
         tr.append(el('td', '', p.name), el('td', '', p.location || '—'), el('td', '', p.ports));
-        const act = el('td', '');
-        act.append(delBtn(() => api('/api/patchpanels/' + p.id, { method: 'DELETE' })));
-        tr.append(act);
+        tr.append(rowActions('patchpanels', p, () => api('/api/patchpanels/' + p.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No patch panels documented yet.')]));
@@ -294,9 +295,7 @@ async function loadInfrastructure() {
           el('td', '', testPill(c.test_result)),
           el('td', '', statusPill(c.status))
         );
-        const act = el('td', '');
-        act.append(delBtn(() => api('/api/cables/' + c.id, { method: 'DELETE' })));
-        tr.append(act);
+        tr.append(rowActions('cables', c, () => api('/api/cables/' + c.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(10, 'No cable runs logged yet. Wire it up!')]));
@@ -314,6 +313,33 @@ function delBtn(run) {
     catch (e) { toast(e.message, 'err'); }
   };
   return b;
+}
+
+/**
+ * Create a small edit button that opens the record in the modal.
+ * @param {string} entity - Entity key used to look up the modal form spec.
+ * @param {object} record - Existing record used to pre-fill the form.
+ * @returns {HTMLButtonElement}
+ */
+function editBtn(entity, record) {
+  const b = el('button', 'btn sm ghost', 'Edit');
+  b.onclick = () => openModal(entity, record);
+  return b;
+}
+
+/**
+ * Build a full action cell with Edit + Delete buttons.
+ * @param {string} entity - Entity key for the modal form spec.
+ * @param {object} record - Record to edit.
+ * @param {() => Promise<void>} delRun - Delete action.
+ * @returns {HTMLTableCellElement}
+ */
+function rowActions(entity, record, delRun) {
+  const td = el('td', '');
+  const box = el('div', 'actions');
+  box.append(editBtn(entity, record), delBtn(delRun));
+  td.append(box);
+  return td;
 }
 
 const testPill = (v) => v === 'Pass' ? pill('pass', 'Pass') : v === 'Fail' ? pill('fail', 'Fail') : pill('pending', v || 'Pending');
@@ -377,9 +403,7 @@ async function loadIpVlan() {
           } catch (e) { toggle.checked = !toggle.checked; toast(e.message, 'err'); }
         };
         tdM.append(toggle);
-        const act = el('td', '');
-        act.append(delBtn(() => api('/api/devices/' + d.id, { method: 'DELETE' })));
-        tr.append(tdM, act);
+        tr.append(tdM, rowActions('devices', d, () => api('/api/devices/' + d.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(8, 'No devices in the inventory yet.')]));
@@ -394,10 +418,15 @@ let refreshTimer = null;
  */
 async function loadMonitoring() {
   const status = await api('/api/monitor/status');
+  const summary = $('#monitorSummary');
   if (status.length === 0) {
     $('#monitorBody').replaceChildren(emptyRow(8, 'No monitored devices yet. Enable monitoring on a device, or add one.'));
+    summary.textContent = '';
     return;
   }
+  const up = status.filter((s) => s.last_status === 'up').length;
+  const down = status.filter((s) => s.last_status === 'down').length;
+  summary.textContent = `${up} up · ${down} down · ${status.length - up - down} not checked`;
   $('#monitorBody').replaceChildren(...status.map((s) => {
     const tr = el('tr');
     const st = s.last_status ? pill(s.last_status, s.last_status === 'up' ? 'UP' : 'DOWN') : pill('pending', 'Never checked');
@@ -521,7 +550,7 @@ async function loadIncidents() {
           el('td', '', fmtDate(i.created_at))
         );
         const act = el('td', '');
-        act.append(advanceBtn(i), delBtn(() => api('/api/issues/' + i.id, { method: 'DELETE' })));
+        act.append(advanceBtn(i), editBtn('issues', i), delBtn(() => api('/api/issues/' + i.id, { method: 'DELETE' })));
         tr.append(act);
         return tr;
       })
@@ -602,28 +631,28 @@ async function search(q) {
 // ---------- Modals / forms ----------
 const forms = {
   rooms: {
-    title: 'Add room', post: '/api/rooms',
+    title: 'Add room', titleEdit: 'Edit room', post: '/api/rooms',
     fields: [
       ['name', 'text', 'Room name', true], ['floor', 'text', 'Floor'],
       ['purpose', 'text', 'Purpose', false, null, 'full'],
     ],
   },
   outlets: {
-    title: 'Add wall outlet', post: '/api/outlets',
+    title: 'Add wall outlet', titleEdit: 'Edit wall outlet', post: '/api/outlets',
     fields: [
       ['label', 'text', 'Label (e.g. A-101)', true], ['location', 'text', 'Location'],
       ['room_id', 'select', 'Room', false, () => roomsCache.rooms.map((r) => ({ v: r.id, l: r.name }))],
     ],
   },
   patchpanels: {
-    title: 'Add patch panel', post: '/api/patchpanels',
+    title: 'Add patch panel', titleEdit: 'Edit patch panel', post: '/api/patchpanels',
     fields: [
       ['name', 'text', 'Panel name', true], ['location', 'text', 'Location'],
       ['ports', 'number', 'Ports'],
     ],
   },
   cables: {
-    title: 'Add cable run', post: '/api/cables',
+    title: 'Add cable run', titleEdit: 'Edit cable run', post: '/api/cables',
     fields: [
       ['cable_id', 'text', 'Cable ID', true], ['patch_port', 'text', 'Patch panel port'],
       ['outlet_id', 'select', 'Wall outlet', false, () => roomsCache.outlets.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }))],
@@ -636,7 +665,7 @@ const forms = {
     ],
   },
   vlans: {
-    title: 'Add VLAN', post: '/api/vlans',
+    title: 'Add VLAN', titleEdit: 'Edit VLAN', post: '/api/vlans',
     fields: [
       ['vlan_id', 'number', 'VLAN ID', true], ['name', 'text', 'VLAN name', true],
       ['subnet', 'text', 'Subnet (e.g. 192.168.10.0/24)'], ['gateway', 'text', 'Gateway'],
@@ -644,7 +673,7 @@ const forms = {
     ],
   },
   devices: {
-    title: 'Add device', post: '/api/devices',
+    title: 'Add device', titleEdit: 'Edit device', post: '/api/devices',
     fields: [
       ['name', 'text', 'Device name', true], ['ip', 'text', 'IP address'],
       ['device_type', 'select', 'Device type', false, () => [
@@ -657,12 +686,12 @@ const forms = {
     ],
   },
   issues: {
-    title: 'Log incident', post: '/api/issues',
+    title: 'Log incident', titleEdit: 'Edit incident', post: '/api/issues',
     fields: [
       ['title', 'text', 'Short summary', true, null, 'full'],
       ['description', 'textarea', 'Details (symptoms, troubleshooting...)', false, null, 'full'],
       ['severity', 'select', 'Severity', false, () => [{ v: 'Low', l: 'Low' }, { v: 'Medium', l: 'Medium' }, { v: 'High', l: 'High' }]],
-      ['status', 'select', 'Status', false, () => [{ v: 'Open', l: 'Open' }, { v: 'In Progress', l: 'In Progress' }, { v: 'Resolved', l: 'Resolved' }]],
+      ['status', 'select', 'Status', false, () => [{ v: 'Open', l: 'Open' }, { v: 'In Progress', l: 'In Progress' }, { v: 'Resolved', l: 'Resolved' }, { v: 'Closed', l: 'Closed' }]],
       ['device_id', 'select', 'Related device (optional)', false, null],
       ['outlet_id', 'select', 'Related outlet (optional)', false, null],
       ['reporter', 'text', 'Reported by'],
@@ -711,14 +740,16 @@ function addField(form, [name, type, label, required, options, span]) {
 }
 
 /**
- * Open the create-modal for the given entity.
+ * Open the create- or edit-modal for the given entity.
  * @param {'rooms'|'outlets'|'patchpanels'|'cables'|'vlans'|'devices'|'issues'} entity
+ * @param {object|null} [edit] - Existing record to pre-fill for editing, or null to create.
  */
-function openModal(entity) {
+function openModal(entity, edit = null) {
   const spec = forms[entity];
+  const isEdit = !!edit;
   const form = $('#modalForm');
   form.replaceChildren();
-  $('#modalTitle').textContent = spec.title;
+  $('#modalTitle').textContent = isEdit ? (spec.titleEdit || spec.title) : spec.title;
 
   spec.fields.forEach((f) => {
     if (f[0] === 'device_id') {
@@ -728,26 +759,37 @@ function openModal(entity) {
       f[4] = () => roomsCache.outlets.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }));
     }
     addField(form, f);
+    if (isEdit) {
+      const field = form.querySelector(`[name="${f[0]}"]`);
+      if (field) {
+        const val = edit[f[0]];
+        field.value = (val === null || val === undefined) ? '' : val;
+      }
+    }
   });
 
   const actions = el('div', 'modal-actions');
   const cancel = el('button', 'btn ghost', 'Cancel');
   cancel.onclick = closeModal;
-  const save = el('button', 'btn primary', 'Save');
+  const save = el('button', 'btn primary', isEdit ? 'Save changes' : 'Save');
   save.onclick = async () => {
     const body = {};
     form.querySelectorAll('input, select, textarea').forEach((i) => {
-      if (i.name && i.value !== '') body[i.name] = i.value;
+      if (i.name) body[i.name] = i.value;
     });
-    for (const k of ['room_id', 'outlet_id', 'patch_panel_id', 'vlan_id', 'device_id', 'ports', 'length_m', 'vlan_id']) {
-      if (body[k] !== undefined) body[k] = Number(body[k]);
+    for (const k of ['room_id', 'outlet_id', 'patch_panel_id', 'vlan_id', 'device_id', 'ports', 'length_m']) {
+      if (body[k] !== undefined && body[k] !== '') body[k] = Number(body[k]);
     }
-    if (body.vlan_id === '') delete body.vlan_id;
     save.disabled = true;
     try {
-      await api(spec.post, { method: 'POST', body: JSON.stringify(body) });
+      if (isEdit) {
+        await api(spec.post + '/' + edit.id, { method: 'PATCH', body: JSON.stringify(body) });
+        toast('Updated');
+      } else {
+        await api(spec.post, { method: 'POST', body: JSON.stringify(body) });
+        toast('Saved');
+      }
       closeModal();
-      toast('Saved');
       reloadCurrent();
       warmCaches();
     } catch (e) {
@@ -1348,12 +1390,12 @@ function showSetup(mode) {
   const welcome = mode === 'welcome';
   $('#setupDemo').closest('.check').style.display = welcome ? '' : 'none';
   document.querySelector('.setup-box h1').textContent = welcome
-    ? 'Welcome to the Network Management Suite'
-    : 'Organization settings';
+    ? 'Network Management Suite'
+    : 'Organization Settings';
   document.querySelector('.setup-box > p').textContent = welcome
-    ? 'Document your cabling, IP plan, and devices — monitor uptime, track incidents, and draw your network. Takes less than a minute to set up.'
-    : 'Change the organization name shown in this console. (Loading demo data is not available here — it would replace existing entries.)';
-  $('#setupStart').textContent = welcome ? 'Start using the Suite' : 'Save settings';
+    ? 'Configure your network management dashboard to get started.'
+    : 'Update your organization name and settings.';
+  $('#setupStart').textContent = welcome ? 'Continue' : 'Save';
   $('#setupOrg').value = welcome ? '' : (orgSettings.org_name || '');
   $('#setupScreen').hidden = false;
   $('#setupOrg').focus();
@@ -1364,45 +1406,71 @@ function showSetup(mode) {
  */
 async function saveSetup() {
   try {
-    console.log('saveSetup called');
-    const org = $('#setupOrg').value.trim() || 'Network Management Suite';
+    const orgInput = $('#setupOrg');
+    const org = orgInput.value.trim();
+    
+    // Validation
+    if (!org) {
+      toast('Please enter an organization name', 'warn');
+      orgInput.focus();
+      return;
+    }
+    
     const demo = setupMode === 'welcome' && $('#setupDemo').checked;
     const btn = $('#setupStart');
-    console.log('saveSetup values:', { org, demo, btn: !!btn });
+    
+    // Disable button and show loading state
     btn.disabled = true;
-    const result = await api('/api/setup', { method: 'POST', body: JSON.stringify({ org_name: org, demo }) });
-    console.log('saveSetup API result:', result);
+    const originalText = btn.textContent;
+    btn.textContent = demo ? 'Loading...' : 'Saving...';
+    
+    const result = await api('/api/setup', { 
+      method: 'POST', 
+      body: JSON.stringify({ org_name: org, demo }) 
+    });
+    
+    // Update UI
     applyOrgBranding(org);
     orgSettings.org_name = org;
     $('#setupScreen').hidden = true;
-    toast(demo ? 'Setup complete — demo data loaded' : 'Settings saved');
+    
+    toast(demo ? 'Configuration complete' : 'Settings saved', 'ok');
+    
+    // Load data and navigate
     await warmCaches();
     goTab(currentTab);
+    
   } catch (e) {
-    console.error('saveSetup error:', e);
-    toast(e.message || 'Setup failed', 'err');
+    console.error('Setup error:', e);
+    toast('Setup failed: ' + (e.message || 'Unknown error'), 'err');
   } finally {
     const btn = $('#setupStart');
-    if (btn) btn.disabled = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = setupMode === 'welcome' ? 'Continue' : 'Save';
+    }
   }
 }
 
 $('#setupStart').addEventListener('click', saveSetup);
-console.log('setupStart listener attached');
 $('#setupScreen').addEventListener('click', (e) => { if (e.target === $('#setupScreen')) $('#setupStart').focus(); });
 $('#setupOrg').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSetup(); });
 $('.sidebar-foot').addEventListener('click', () => showSetup('settings'));
 
 // ---------- Init ----------
 window.addEventListener('DOMContentLoaded', async () => {
-  console.log('DOMContentLoaded fired');
   try {
     const setup = await api('/api/setup?t=' + Date.now());
-    console.log('Setup API response:', setup);
+    
     const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
       .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     currentTab = tab;
-    if (!setup.configured) { showSetup('welcome'); return; }
+    
+    if (!setup.configured) { 
+      showSetup('welcome'); 
+      return; 
+    }
+    
     orgSettings = { org_name: setup.org_name };
     applyOrgBranding(setup.org_name);
     $('#setupScreen').hidden = true;
