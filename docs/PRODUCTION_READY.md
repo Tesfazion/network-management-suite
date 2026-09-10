@@ -120,7 +120,7 @@ Try these steps in order:
 NODE_ENV=production
 PORT=8080
 HOST=0.0.0.0
-DATABASE_PATH=./network.db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/network_management_suite
 AUTH_TOKEN=your-secret-token-here
 ```
 
@@ -167,7 +167,7 @@ minute to set up.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-ℹ Your data stays local in a single SQLite file. No account
+ℹ Your data lives in PostgreSQL. No account
   or internet required after setup.
 ```
 

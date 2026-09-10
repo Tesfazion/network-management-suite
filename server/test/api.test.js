@@ -1,11 +1,11 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+const { Pool } = require('pg');
 
-const dbFile = path.join(os.tmpdir(), `nms-test-${process.pid}-${Date.now()}.db`);
-process.env.DATABASE_PATH = dbFile;
+const dbName = `nms_test_${process.pid}_${Date.now()}`;
+process.env.DATABASE_URL = `postgresql://postgres:Bu0987654321%23@localhost:8869/${dbName}`;
+
+const adminPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
 
 const app = require('../app');
 
@@ -13,6 +13,12 @@ let server;
 let base;
 
 before(async () => {
+  await adminPool.query(`CREATE DATABASE "${dbName}"`);
+  await adminPool.end();
+
+  const db = require('../db');
+  await db.init();
+
   server = app.listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}/api`;
@@ -20,9 +26,12 @@ before(async () => {
 
 after(async () => {
   await new Promise((resolve) => server.close(resolve));
-  for (const suffix of ['', '-wal', '-shm']) {
-    try { fs.unlinkSync(dbFile + suffix); } catch { /* ignore */ }
-  }
+  const db = require('../db');
+  await db.close();
+
+  const cleanupPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
+  await cleanupPool.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+  await cleanupPool.end();
 });
 
 async function req(method, url, body) {

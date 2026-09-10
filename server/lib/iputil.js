@@ -28,7 +28,7 @@ function cidrRange(subnet) {
   if (!m) return null;
   const base = ipToInt(m[1]);
   if (base === null) return null;
-  let mask = parseInt(m[2], 10);
+  const mask = parseInt(m[2], 10);
   if (mask < 0 || mask > 32) return null;
   const cidr = mask === 0 ? 0 : (0xffffffff << (32 - mask)) >>> 0;
   return { start: (base & cidr) >>> 0, end: ((base & cidr) | (~cidr >>> 0)) >>> 0 };
@@ -50,9 +50,16 @@ function isRouterLike(device) {
  * - IPs outside their assigned VLAN subnet
  * - non-router devices squatting on a VLAN gateway
  */
-function ipConflicts(db) {
-  const devices = db.prepare('SELECT * FROM devices').all();
-  const vlanById = new Map(db.prepare('SELECT * FROM vlans').all().map((v) => [v.id, v]));
+async function ipConflicts(db, orgId = null) {
+  const deviceQuery = orgId 
+    ? await db.query('SELECT * FROM devices WHERE org_id = $1', [orgId])
+    : await db.query('SELECT * FROM devices');
+  const devices = deviceQuery.rows;
+  
+  const vlanQuery = orgId
+    ? await db.query('SELECT * FROM vlans WHERE org_id = $1', [orgId])
+    : await db.query('SELECT * FROM vlans');
+  const vlanById = new Map(vlanQuery.rows.map((v) => [v.id, v]));
 
   const seen = new Map();
   const duplicates = [];

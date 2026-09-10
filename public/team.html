@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Management - Network Management Suite</title>
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/team.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+            <path d="M24 4L44 14V34L24 44L4 34V14L24 4Z" stroke="url(#gradient)" stroke-width="2.5" fill="none"/>
+            <circle cx="24" cy="24" r="6" fill="url(#gradient)"/>
+            <defs>
+              <linearGradient id="gradient" x1="4" y1="4" x2="44" y2="44">
+                <stop offset="0%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>NMS</h1>
+          <span>Network Suite</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="/dashboard.html" class="nav-link">
+          <i class="fas fa-th-large"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-network-wired"></i>
+          <span>Infrastructure</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-server"></i>
+          <span>Devices</span>
+          <span class="badge">142</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-chart-line"></i>
+          <span>Monitoring</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-bell"></i>
+          <span>Alerts</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-project-diagram"></i>
+          <span>Topology</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-chart-bar"></i>
+          <span>Reports</span>
+        </a>
+      </nav>
+
+      <nav class="sidebar-nav sidebar-nav-secondary">
+        <a href="/team.html" class="nav-link active">
+          <i class="fas fa-users"></i>
+          <span>Team</span>
+        </a>
+        <a href="#" class="nav-link">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="org-switcher">
+          <div class="org-info">
+            <div class="org-avatar" id="orgAvatar">AC</div>
+            <div class="org-details">
+              <div class="org-name" id="orgName">Acme Corporation</div>
+              <div class="org-plan">Pro Plan</div>
+            </div>
+          </div>
+          <button class="org-switch-btn" title="Switch organization">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="menu-toggle" id="menuToggle">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Search team members..." id="globalSearch">
+            <kbd>Ctrl+K</kbd>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <button class="header-icon" title="Refresh data" id="refreshBtn">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button class="header-icon" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <span class="notification-dot"></span>
+          </button>
+          <div class="user-menu">
+            <button class="user-avatar">
+              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'%3E%3Ccircle cx='12' cy='12' r='12'/%3E%3Ctext x='12' y='17' text-anchor='middle' fill='white' font-size='12' font-weight='bold'%3EJD%3C/text%3E%3C/svg%3E" alt="User">
+            </button>
+            <div class="user-dropdown" id="userDropdown">
+              <div class="dropdown-header">
+                <div class="dropdown-user-name" id="userName">John Doe</div>
+                <div class="dropdown-user-email" id="userEmail">john@acme.com</div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item">
+                <i class="fas fa-user"></i> Profile
+              </a>
+              <a href="#" class="dropdown-item">
+                <i class="fas fa-cog"></i> Settings
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item" id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <div class="page-content">
+        <div class="page active">
+          <!-- Page Header -->
+          <div class="page-header">
+            <div class="page-title">
+              <h2>Team Management</h2>
+              <p>Manage team members, roles, and permissions for your organization</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-primary" id="inviteMemberBtn">
+                <i class="fas fa-user-plus"></i> Invite Member
+              </button>
+            </div>
+          </div>
+
+          <!-- Team Stats -->
+          <div class="stats-grid" id="teamStats">
+            <div class="stat-card stat-card-info">
+              <div class="stat-icon">
+                <i class="fas fa-users"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Total Members</div>
+                <div class="stat-value" id="totalMembers">-</div>
+                <div class="stat-change">Across all roles</div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-success">
+              <div class="stat-icon">
+                <i class="fas fa-user-shield"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Admins</div>
+                <div class="stat-value" id="adminCount">-</div>
+                <div class="stat-change">With full access</div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-warning">
+              <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Last Login</div>
+                <div class="stat-value" id="lastLogin">-</div>
+                <div class="stat-change">Most recent activity</div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-danger">
+              <div class="stat-icon">
+                <i class="fas fa-user-clock"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Inactive</div>
+                <div class="stat-value" id="inactiveCount">-</div>
+                <div class="stat-change">30+ days</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Members Table -->
+          <div class="dashboard-card card-full">
+            <div class="card-header">
+              <h3>Team Members</h3>
+              <div class="card-actions">
+                <select class="filter-selector" id="roleFilter">
+                  <option value="">All Roles</option>
+                  <option value="owner">Owner</option>
+                  <option value="admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table class="team-table">
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th>Role</th>
+                      <th>Joined</th>
+                      <th>Last Login</th>
+                      <th>Invited By</th>
+                      <th class="text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="membersTableBody">
+                    <tr class="loading-row">
+                      <td colspan="6" class="text-center">
+                        <div class="spinner"></div>
+                        <span>Loading team members...</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invite Member Modal -->
+  <div class="modal" id="inviteModal">
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3>Invite Team Member</h3>
+        <button class="modal-close" id="closeModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="inviteForm">
+          <div class="form-group">
+            <label for="inviteEmail">Email Address</label>
+            <input 
+              type="email" 
+              id="inviteEmail" 
+              placeholder="colleague@company.com" 
+              required
+              autocomplete="email"
+            >
+            <small class="form-hint">User must sign up first before being invited</small>
+          </div>
+
+          <div class="form-group">
+            <label for="inviteRole">Role</label>
+            <select id="inviteRole" required>
+              <option value="viewer">Viewer - Read-only access</option>
+              <option value="member" selected>Member - Can edit devices</option>
+              <option value="admin">Admin - Can manage team</option>
+              <option value="owner">Owner - Full control</option>
+            </select>
+          </div>
+
+          <div class="role-description" id="roleDescription">
+            <strong>Member Permissions:</strong>
+            <ul>
+              <li>View all devices and infrastructure</li>
+              <li>Add, edit, and delete devices</li>
+              <li>Configure monitoring</li>
+              <li>Create and resolve issues</li>
+            </ul>
+          </div>
+
+          <div class="error-message" id="inviteError" style="display: none;"></div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelInviteBtn">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <span class="btn-text">Send Invitation</span>
+              <span class="btn-loader" style="display: none;">
+                <span class="spinner"></span>
+              </span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Role Modal -->
+  <div class="modal" id="changeRoleModal">
+    <div class="modal-overlay" id="roleModalOverlay"></div>
+    <div class="modal-container modal-sm">
+      <div class="modal-header">
+        <h3>Change Member Role</h3>
+        <button class="modal-close" id="closeRoleModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="changeRoleForm">
+          <div class="member-info" id="changingMemberInfo">
+            <div class="member-avatar">JD</div>
+            <div>
+              <div class="member-name">John Doe</div>
+              <div class="member-email">john@company.com</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="newRole">New Role</label>
+            <select id="newRole" required>
+              <option value="viewer">Viewer</option>
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+
+          <div class="error-message" id="roleChangeError" style="display: none;"></div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelRoleBtn">
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">
+              Update Role
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Remove Member Modal -->
+  <div class="modal" id="removeMemberModal">
+    <div class="modal-overlay" id="removeModalOverlay"></div>
+    <div class="modal-container modal-sm">
+      <div class="modal-header">
+        <h3>Remove Team Member</h3>
+        <button class="modal-close" id="closeRemoveModal">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="warning-box">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>Are you sure you want to remove <strong id="removingMemberName"></strong> from your organization?</p>
+          <p>This action cannot be undone.</p>
+        </div>
+
+        <div class="error-message" id="removeError" style="display: none;"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancelRemoveBtn">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-danger" id="confirmRemoveBtn">
+            <i class="fas fa-trash"></i> Remove Member
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/team.js"></script>
+</body>
+</html>

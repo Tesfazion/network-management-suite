@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard - Network Management Suite</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Ccircle cx='7' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='17' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='12' cy='17' r='2.6' fill='white'/%3E%3Cpath d='M8.6 8.6 10.8 14.6M15.4 8.6l-2.2 6M9.4 7h5.4' stroke='white' stroke-width='1.4' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- App Container -->
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+            <path d="M24 4L44 14V34L24 44L4 34V14L24 4Z" stroke="url(#gradient)" stroke-width="2.5" fill="none"/>
+            <circle cx="24" cy="24" r="6" fill="url(#gradient)"/>
+            <defs>
+              <linearGradient id="gradient" x1="4" y1="4" x2="44" y2="44">
+                <stop offset="0%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>NMS</h1>
+          <span>Network Suite</span>
+        </div>
+      </div>
+
+      <!-- Main Navigation -->
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-link active" data-page="overview">
+          <i class="fas fa-th-large"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#" class="nav-link" data-page="infrastructure">
+          <i class="fas fa-network-wired"></i>
+          <span>Infrastructure</span>
+        </a>
+        <a href="#" class="nav-link" data-page="devices">
+          <i class="fas fa-server"></i>
+          <span>Devices</span>
+          <span class="badge">142</span>
+        </a>
+        <a href="#" class="nav-link" data-page="monitoring">
+          <i class="fas fa-chart-line"></i>
+          <span>Monitoring</span>
+        </a>
+        <a href="#" class="nav-link" data-page="alerts">
+          <i class="fas fa-bell"></i>
+          <span>Alerts</span>
+          <span class="badge badge-danger">3</span>
+        </a>
+        <a href="#" class="nav-link" data-page="topology">
+          <i class="fas fa-project-diagram"></i>
+          <span>Topology</span>
+        </a>
+        <a href="#" class="nav-link" data-page="reports">
+          <i class="fas fa-chart-bar"></i>
+          <span>Reports</span>
+        </a>
+      </nav>
+
+      <!-- Secondary Navigation -->
+      <nav class="sidebar-nav sidebar-nav-secondary">
+        <a href="/team.html" class="nav-link" data-page="team">
+          <i class="fas fa-users"></i>
+          <span>Team</span>
+        </a>
+        <a href="#" class="nav-link" data-page="settings">
+          <i class="fas fa-cog"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <!-- Organization Switcher -->
+      <div class="sidebar-footer">
+        <div class="org-switcher">
+          <div class="org-info">
+            <div class="org-avatar">AC</div>
+            <div class="org-details">
+              <div class="org-name" id="orgName">Acme Corporation</div>
+              <div class="org-plan">Pro Plan</div>
+            </div>
+          </div>
+          <button class="org-switch-btn" title="Switch organization">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="menu-toggle" id="menuToggle">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Search devices, IPs, alerts..." id="globalSearch">
+            <kbd>Ctrl+K</kbd>
+          </div>
+        </div>
+
+        <div class="header-right">
+          <button class="header-icon" title="Refresh data">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button class="header-icon" title="Notifications">
+            <i class="fas fa-bell"></i>
+            <span class="notification-dot"></span>
+          </button>
+          <div class="user-menu">
+            <button class="user-avatar">
+              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'%3E%3Ccircle cx='12' cy='12' r='12'/%3E%3Ctext x='12' y='17' text-anchor='middle' fill='white' font-size='12' font-weight='bold'%3EJD%3C/text%3E%3C/svg%3E" alt="User">
+            </button>
+            <div class="user-dropdown" id="userDropdown">
+              <div class="dropdown-header">
+                <div class="dropdown-user-name" id="userName">John Doe</div>
+                <div class="dropdown-user-email" id="userEmail">john@acme.com</div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item">
+                <i class="fas fa-user"></i> Profile
+              </a>
+              <a href="#" class="dropdown-item">
+                <i class="fas fa-cog"></i> Settings
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item" id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </a>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Page Content -->
+      <div class="page-content">
+        <!-- Overview Page -->
+        <div class="page active" id="page-overview">
+          <!-- Page Header -->
+          <div class="page-header">
+            <div class="page-title">
+              <h2>Network Overview</h2>
+              <p>Real-time monitoring and health status of your network infrastructure</p>
+            </div>
+            <div class="page-actions">
+              <button class="btn btn-secondary">
+                <i class="fas fa-download"></i> Export Report
+              </button>
+              <button class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Device
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Cards -->
+          <div class="stats-grid">
+            <div class="stat-card stat-card-success">
+              <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Devices Online</div>
+                <div class="stat-value" id="devicesOnline">138</div>
+                <div class="stat-change stat-up">
+                  <i class="fas fa-arrow-up"></i> 2.5%
+                </div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-danger">
+              <div class="stat-icon">
+                <i class="fas fa-exclamation-circle"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Critical Alerts</div>
+                <div class="stat-value" id="criticalAlerts">3</div>
+                <div class="stat-change stat-down">
+                  <i class="fas fa-arrow-down"></i> 1 from yesterday
+                </div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-warning">
+              <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Warnings</div>
+                <div class="stat-value" id="warnings">12</div>
+                <div class="stat-change">
+                  <i class="fas fa-minus"></i> No change
+                </div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-card-info">
+              <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+              </div>
+              <div class="stat-content">
+                <div class="stat-label">Avg Response Time</div>
+                <div class="stat-value" id="avgRTT">12ms</div>
+                <div class="stat-change stat-up">
+                  <i class="fas fa-arrow-up"></i> 3ms better
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Dashboard Grid -->
+          <div class="dashboard-grid">
+            <!-- Network Health Chart -->
+            <div class="dashboard-card card-lg">
+              <div class="card-header">
+                <h3>Network Health</h3>
+                <div class="card-actions">
+                  <select class="time-selector">
+                    <option>Last 24 hours</option>
+                    <option>Last 7 days</option>
+                    <option>Last 30 days</option>
+                  </select>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="chart-container" id="healthChart">
+                  <canvas id="networkHealthChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <!-- Device Status -->
+            <div class="dashboard-card">
+              <div class="card-header">
+                <h3>Device Status</h3>
+                <a href="#" class="card-link">View all →</a>
+              </div>
+              <div class="card-body">
+                <div class="donut-chart" id="deviceStatusChart">
+                  <svg viewBox="0 0 200 200" width="180" height="180">
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#10b981" stroke-width="25" 
+                            stroke-dasharray="440 502" transform="rotate(-90 100 100)" opacity="0.9"/>
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#ef4444" stroke-width="25" 
+                            stroke-dasharray="25 477" stroke-dashoffset="-440" transform="rotate(-90 100 100)" opacity="0.9"/>
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#f59e0b" stroke-width="25" 
+                            stroke-dasharray="37 465" stroke-dashoffset="-465" transform="rotate(-90 100 100)" opacity="0.9"/>
+                    <text x="100" y="95" text-anchor="middle" fill="#f8fafc" font-size="32" font-weight="600">97%</text>
+                    <text x="100" y="115" text-anchor="middle" fill="#94a3b8" font-size="14">Uptime</text>
+                  </svg>
+                </div>
+                <div class="status-legend">
+                  <div class="legend-item">
+                    <span class="legend-dot" style="background: #10b981;"></span>
+                    <span>Online: 138</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-dot" style="background: #ef4444;"></span>
+                    <span>Offline: 4</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-dot" style="background: #f59e0b;"></span>
+                    <span>Warning: 6</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Alerts -->
+            <div class="dashboard-card card-md">
+              <div class="card-header">
+                <h3>Recent Alerts</h3>
+                <a href="#" class="card-link">View all →</a>
+              </div>
+              <div class="card-body">
+                <div class="alerts-list" id="recentAlerts">
+                  <div class="alert-item alert-critical">
+                    <div class="alert-icon"><i class="fas fa-times-circle"></i></div>
+                    <div class="alert-content">
+                      <div class="alert-title">Switch-Floor3 - Connection Lost</div>
+                      <div class="alert-time">2 minutes ago</div>
+                    </div>
+                    <div class="alert-status">Critical</div>
+                  </div>
+                  <div class="alert-item alert-warning">
+                    <div class="alert-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="alert-content">
+                      <div class="alert-title">High CPU Usage - Server01</div>
+                      <div class="alert-time">15 minutes ago</div>
+                    </div>
+                    <div class="alert-status">Warning</div>
+                  </div>
+                  <div class="alert-item alert-info">
+                    <div class="alert-icon"><i class="fas fa-info-circle"></i></div>
+                    <div class="alert-content">
+                      <div class="alert-title">Configuration Change - Router-Main</div>
+                      <div class="alert-time">1 hour ago</div>
+                    </div>
+                    <div class="alert-status">Info</div>
+                  </div>
+                  <div class="alert-item alert-success">
+                    <div class="alert-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="alert-content">
+                      <div class="alert-title">Backup Completed Successfully</div>
+                      <div class="alert-time">2 hours ago</div>
+                    </div>
+                    <div class="alert-status">Success</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top Devices by Traffic -->
+            <div class="dashboard-card card-md">
+              <div class="card-header">
+                <h3>Top Devices by Traffic</h3>
+                <a href="#" class="card-link">Details →</a>
+              </div>
+              <div class="card-body">
+                <div class="device-list">
+                  <div class="device-item">
+                    <div class="device-info">
+                      <i class="fas fa-server device-icon"></i>
+                      <div>
+                        <div class="device-name">Server-Web01</div>
+                        <div class="device-ip">192.168.1.10</div>
+                      </div>
+                    </div>
+                    <div class="device-traffic">
+                      <div class="traffic-bar">
+                        <div class="traffic-fill" style="width: 85%;"></div>
+                      </div>
+                      <span>2.3 GB/s</span>
+                    </div>
+                  </div>
+                  <div class="device-item">
+                    <div class="device-info">
+                      <i class="fas fa-network-wired device-icon"></i>
+                      <div>
+                        <div class="device-name">Switch-Core</div>
+                        <div class="device-ip">192.168.1.1</div>
+                      </div>
+                    </div>
+                    <div class="device-traffic">
+                      <div class="traffic-bar">
+                        <div class="traffic-fill" style="width: 72%;"></div>
+                      </div>
+                      <span>1.8 GB/s</span>
+                    </div>
+                  </div>
+                  <div class="device-item">
+                    <div class="device-info">
+                      <i class="fas fa-database device-icon"></i>
+                      <div>
+                        <div class="device-name">DB-Primary</div>
+                        <div class="device-ip">192.168.1.20</div>
+                      </div>
+                    </div>
+                    <div class="device-traffic">
+                      <div class="traffic-bar">
+                        <div class="traffic-fill" style="width: 58%;"></div>
+                      </div>
+                      <span>1.2 GB/s</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Event Feed -->
+            <div class="dashboard-card card-full">
+              <div class="card-header">
+                <h3>Live Event Feed</h3>
+                <span class="live-indicator">
+                  <span class="live-dot"></span> Live
+                </span>
+              </div>
+              <div class="card-body">
+                <div class="event-feed" id="eventFeed">
+                  <div class="event-item">
+                    <span class="event-time">10:34:22</span>
+                    <span class="event-type event-success">UP</span>
+                    <span class="event-message">Device "Router-Main" is now reachable</span>
+                  </div>
+                  <div class="event-item">
+                    <span class="event-time">10:33:15</span>
+                    <span class="event-type event-danger">DOWN</span>
+                    <span class="event-message">Device "Switch-Floor3" connection lost</span>
+                  </div>
+                  <div class="event-item">
+                    <span class="event-time">10:32:08</span>
+                    <span class="event-type event-info">INFO</span>
+                    <span class="event-message">Configuration backup completed for 42 devices</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Other pages will be loaded here -->
+        <div class="page" id="page-infrastructure">
+          <div class="page-header">
+            <div class="page-title">
+              <h2>Infrastructure Management</h2>
+              <p>Manage rooms, outlets, patch panels, and cable runs</p>
+            </div>
+          </div>
+          <div class="empty-state">
+            <i class="fas fa-network-wired"></i>
+            <h3>Infrastructure View</h3>
+            <p>This section is under development</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

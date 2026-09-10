@@ -4,10 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Network Management Suite</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Ccircle cx='7' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='17' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='12' cy='17' r='2.6' fill='white'/%3E%3Cpath d='M8.6 8.6 10.8 14.6M15.4 8.6l-2.2 6M9.4 7h5.4' stroke='white' stroke-width='1.4' fill='none'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/css/style.css?v=2.0.0">
+  <script>
+    // Redirect to appropriate page based on authentication
+    const token = localStorage.getItem('token');
+    if (token) {
+      window.location.href = '/dashboard.html';
+    } else {
+      window.location.href = '/auth.html';
+    }
+  </script>
 </head>
 <body>
+  <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0a0e1a; color: #f8fafc; font-family: sans-serif;">
+    <div style="text-align: center;">
+      <div style="font-size: 2rem; margin-bottom: 1rem;">Loading...</div>
+      <div style="color: #94a3b8;">Redirecting to dashboard</div>
+    </div>
+  </div>
+</body>
+</html>
   <div class="app">
     <aside class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="brand">
@@ -44,7 +59,7 @@
 
       <div class="sidebar-foot" title="Organization settings">
         <span class="org-name" id="orgName" role="button" tabindex="0" aria-label="Organization settings">Network Management Suite</span>
-        <span class="muted">v2.0.0 · SQLite</span>
+        <span class="muted">v2.1.0 · PostgreSQL</span>
       </div>
     </aside>
 
@@ -65,23 +80,57 @@
 
       <main id="content">
         <section id="dashboard" class="view active" aria-labelledby="dashboard-heading">
-          <div class="view-head">
-            <h2 id="dashboard-heading">Dashboard</h2>
-            <span class="muted" id="dashUpdated" aria-live="polite"></span>
+          <div class="dash-hero">
+            <div class="dash-hero-copy">
+              <h2 id="dashboard-heading">Network Overview</h2>
+              <p class="dash-sub">Infrastructure health, availability, and active issues at a glance.</p>
+            </div>
+            <div class="dash-hero-actions">
+              <span class="health-chip health-warn" id="dashHealth" role="status" aria-live="polite"></span>
+              <button class="btn primary" id="dashCheckAll" aria-label="Check all monitored devices now">Run checks</button>
+              <span class="muted" id="dashUpdated" aria-live="polite"></span>
+            </div>
           </div>
           <div id="dashConflicts" aria-live="polite"></div>
-          <div class="cards" id="dashCards"></div>
-          <div class="grid two">
-            <div class="card-block">
-              <div class="block-head"><h3>Uptime snapshot</h3></div>
-              <div id="dashUptime"></div>
+          <div id="dashKpis" class="dash-kpis"></div>
+          <div class="dash-rows">
+            <div class="dash-panel">
+              <div class="block-head"><h3>Network availability</h3></div>
+              <div id="dashDonut" class="dash-donut-wrap"></div>
             </div>
-            <div class="card-block">
+            <div class="dash-panel">
+              <div class="block-head"><h3>Devices by type</h3></div>
+              <div id="dashTypes"></div>
+            </div>
+            <div class="dash-panel">
+              <div class="block-head"><h3>VLAN utilization</h3></div>
+              <div id="dashVlans"></div>
+            </div>
+          </div>
+          <div class="dash-rows lower">
+            <div class="dash-panel">
               <div class="block-head">
                 <h3>Recent incidents</h3>
                 <a class="link" data-goto="incidents" role="link" tabindex="0">View all →</a>
               </div>
               <div id="dashIssues"></div>
+            </div>
+            <div class="dash-panel">
+              <div class="block-head">
+                <h3>Device reachability</h3>
+                <a class="link" data-goto="monitoring" role="link" tabindex="0">Open monitoring →</a>
+              </div>
+              <div id="dashUptime"></div>
+            </div>
+          </div>
+          <div class="dash-rows">
+            <div class="dash-panel full">
+              <div class="block-head">
+                <h3>Live Event Feed</h3>
+                <span class="live-badge">Live</span>
+                <span class="muted" id="monitoringStatus"></span>
+              </div>
+              <div id="eventFeed" class="event-feed"></div>
             </div>
           </div>
         </section>
@@ -150,7 +199,7 @@
                 <button class="btn sm" data-entity="vlans" aria-label="Add VLAN">Add</button>
               </div>
               <div class="scroller">
-                <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th>Devices</th></tr></thead><tbody id="vlansBody"></tbody></table>
+                <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th>Devices</th><th></th></tr></thead><tbody id="vlansBody"></tbody></table>
               </div>
             </div>
             <div class="card-block full">
@@ -243,9 +292,9 @@
     </div>
   </div>
 
-  <div id="setupScreen" class="setup" hidden>
+  <div id="setupScreen" class="setup" hidden style="display: none !important;">
     <div class="setup-box">
-      <div class="setup-brand" aria-hidden="true">
+      <div class="setup-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
           <path d="M7.5 7.5 10.5 15.8M16.5 7.5l-4.5 8.3M8.5 6h7.2"/>
@@ -253,12 +302,15 @@
       </div>
       <h1>Network Management Suite</h1>
       <p>Configure your network management dashboard to get started.</p>
-      <div class="field">
+      <div class="setup-field">
         <label for="setupOrg">Organization name</label>
         <input id="setupOrg" type="text" placeholder="Enter organization name" autocomplete="organization" required>
       </div>
-      <label class="check"><input type="checkbox" id="setupDemo" checked> <span>Load demonstration data</span></label>
-      <button class="btn primary full" id="setupStart">Continue</button>
+      <label class="setup-check">
+        <input type="checkbox" id="setupDemo" checked>
+        <span>Load demonstration data</span>
+      </label>
+      <button class="btn primary setup-btn" id="setupStart">Continue</button>
     </div>
   </div>
 
@@ -271,6 +323,6 @@
 
   <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="/js/app.js?v=2.0.0"></script>
+  <script src="/js/app.js?v=1789001406755"></script>
 </body>
 </html>

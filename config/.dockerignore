@@ -1,0 +1,11 @@
+node_modules
+backups
+network.db
+network.db-wal
+network.db-shm
+.env
+.git
+.gitignore
+*.md
+npm-debug.log*
+.DS_Store

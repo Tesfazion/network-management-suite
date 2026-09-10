@@ -30,7 +30,7 @@ const el = (tag, cls, txt) => {
  * Call the JSON API and return parsed data.
  * Throws on non-2xx responses so callers can show a toast.
  *
- * @param {string} path - API path (e.g. '/api/rooms').
+ * @param {string} path - API path (e.g. '/api/v1/rooms').
  * @param {object} [opts] - fetch options.
  * @returns {Promise<any>}
  */
@@ -153,12 +153,77 @@ function loadTab(name) {
 
 // ---------- Dashboard ----------
 
+/** Small stroke-icon set used on the dashboard KPI tiles. Single-path definitions. */
+const ICON_PATHS = {
+  devices: ['M6 3h12v18H6z', 'M9 7h6', 'M9 12h6', 'M9 17h4'],
+  online: ['M5 12a7 7 0 0 1 14 0', 'M8.5 12a3.5 3.5 0 0 1 7 0', 'M12 19v.01'],
+  cables: ['M9 2v3M15 2v3M7 5h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5z', 'M12 13v7', 'M8 20h8'],
+  incidents: ['M10.3 3.8 2.5 15.9A2 2 0 0 0 4.2 19h15.6a2 2 0 0 0 1.7-3.1L13.7 3.8a2 2 0 0 0-3.4 0z', 'M12 9v4', 'M12 17h.01'],
+  conflicts: ['M8 7h10M15 9.5 17.5 7 15 4.5', 'M16 17H6M9 14.5 6.5 17 9 19.5'],
+  failed: ['M12 2.5 20 5v6c0 4.6-3.4 8.6-8 9.5-4.6-.9-8-4.9-8-9.5V5z', 'M9.5 9.5l5 5', 'M14.5 9.5l-5 5'],
+};
+
 /**
- * Fetch dashboard aggregates, conflict alerts, uptime, and recent issues.
+ * Build a 24x24 stroke-based SVG icon element from a named path set.
+ * @param {string} name - Key into {@link ICON_PATHS}.
+ * @returns {SVGSVGElement}
+ */
+function ico(name) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '20');
+  svg.setAttribute('height', '20');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.7');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  (ICON_PATHS[name] || []).forEach((d) => {
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', d);
+    svg.appendChild(p);
+  });
+  return svg;
+}
+
+/**
+ * Build a horizontal meter bar filled to the given percentage.
+ * Shared by the KPI tiles, device-type, and VLAN panels (DRY).
+ * @param {number} width - Fill width 0-100.
+ * @param {string} [cls] - Meter element class.
+ * @returns {HTMLElement}
+ */
+function meterFill(width, cls = 'meter') {
+  const meter = el('div', cls);
+  const fill = el('i');
+  fill.style.width = Math.min(Math.max(width || 0, 0), 100) + '%';
+  meter.append(fill);
+  return meter;
+}
+
+/**
+ * Run a dashboard sub-render in isolation so one malformed panel
+ * never blanks the whole overview (reliability).
+ * @param {() => void} fn - Panel renderer.
+ * @param {string} label - Panel name for diagnostics.
+ */
+function dashPanel(fn, label) {
+  try { fn(); }
+  catch (e) { console.error(`Dashboard panel error (${label}):`, e); }
+}
+
+/**
+ * Fetch dashboard aggregates, conflict alerts, uptime, and recent issues,
+ * then render the overview: health chip, KPI tiles, availability donut,
+ * device/VLAN breakdowns, recent incidents, and live reachability.
  */
 async function loadDashboard() {
-  const d = await api('/api/dashboard');
-  const conflicts = await api('/api/conflicts');
+  const [d, conflicts, issues] = await Promise.all([
+    api('/api/v1/dashboard'),
+    api('/api/v1/conflicts'),
+    api('/api/v1/issues'),
+  ]);
 
   $('#dashUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 
@@ -166,56 +231,251 @@ async function loadDashboard() {
   if (d.counts.openIssues > 0) { badge.textContent = d.counts.openIssues; badge.hidden = false; }
   else badge.hidden = true;
 
-  const cards = [
-    { l: 'Rooms', n: d.counts.rooms, ico: '◫', cls: '' },
-    { l: 'Outlets', n: d.counts.outlets, ico: '▢', cls: '' },
-    { l: 'Cables active', n: d.counts.cablesActive, ico: '⌁', cls: '' },
-    { l: 'Failed tests', n: d.counts.cablesFailedTest, ico: '✖', cls: d.counts.cablesFailedTest > 0 ? 'bad' : 'good' },
-    { l: 'Patch panels', n: d.counts.panels, ico: '⊞', cls: '' },
-    { l: 'VLANs', n: d.counts.vlans, ico: '≋', cls: '' },
-    { l: 'Devices', n: d.counts.devices, ico: '▤', cls: '' },
-    { l: 'Open incidents', n: d.counts.openIssues, ico: '⚠', cls: d.counts.openIssues > 0 ? 'warn' : 'good' },
-  ];
-  $('#dashCards').replaceChildren(...cards.map((c) => {
-    const card = el('div', 'card ' + c.cls);
-    card.append(el('div', 'c-ico', c.ico));
-    const body = el('div');
-    body.append(el('div', 'c-num', c.n), el('div', 'c-label', c.l));
-    card.append(body);
-    return card;
-  }));
+  dashPanel(() => renderHealth(d), 'health');
+  dashPanel(() => renderKpis(d), 'kpis');
+  dashPanel(() => renderDonut(d), 'availability');
+  dashPanel(() => renderTypes(d), 'device types');
+  dashPanel(() => renderVlans(d), 'vlans');
+  dashPanel(() => renderIssues(issues), 'incidents');
+  dashPanel(() => renderReach(d), 'reachability');
 
-  const u = d.uptime;
-  const uptime = el('div', 'cards');
-  const upCard = el('div', u.down > 0 ? 'card warn' : 'card good');
-  upCard.append(el('div', 'c-ico', '●'));
-  const upBody = el('div'); upBody.append(el('div', 'c-num', `${u.up}/${u.total}`), el('div', 'c-label', 'Devices up'));
-  upCard.append(upBody);
-  const downCard = el('div', u.down > 0 ? 'card bad' : 'card good');
-  downCard.append(el('div', 'c-ico', '◌'));
-  const dBody = el('div'); dBody.append(el('div', 'c-num', u.down), el('div', 'c-label', 'Devices down'));
-  downCard.append(dBody);
-  uptime.append(upCard, downCard);
-  $('#dashUptime').replaceChildren(u.total === 0 ? el('div', 'muted', 'No monitored devices yet. Open Monitoring and run a check.') : uptime);
-
-  $('#dashConflicts').replaceChildren(...conflictsBlock(conflicts));
-
-  const issues = await api('/api/issues');
-  const open = issues.filter((i) => i.status !== 'Resolved' && i.status !== 'Closed').slice(0, 4);
-  const box = el('div');
-  if (open.length === 0) box.append(el('div', 'muted', 'No open incidents. Everything is calm.'));
-  open.forEach((i) => {
-    const line = el('div', 'hist-line');
-    line.append(pill(i.status === 'In Progress' ? 'in-progress' : i.status.toLowerCase(), i.status),
-      el('span', '', '  ' + i.title));
-    box.append(line);
-  });
-  $('#dashIssues').replaceChildren(box);
+  dashPanel(() => { $('#dashConflicts').replaceChildren(...conflictsBlock(conflicts)); }, 'conflicts');
 }
 
 /**
+ * Render the status chip in the dashboard hero based on device + incident health.
+ * @param {object} d - Dashboard payload.
+ */
+function renderHealth(d) {
+  const chip = $('#dashHealth');
+  const u = d.uptime;
+  let cls, label;
+  if (u.down > 0) {
+    cls = 'health-bad';
+    label = u.down + (u.down === 1 ? ' device offline' : ' devices offline');
+  } else if (d.counts.openIssues > 0) {
+    cls = 'health-warn';
+    label = 'Open issues need attention';
+  } else if (u.total === 0) {
+    cls = 'health-warn';
+    label = 'No monitoring data yet';
+  } else {
+    cls = 'health-good';
+    label = 'All systems operational';
+  }
+  chip.className = 'health-chip ' + cls;
+  chip.replaceChildren(el('i', 'hc-dot'), el('span', '', label));
+}
+
+/**
+ * Render the KPI tile row (icon, value, hint, mini meter).
+ * @param {object} d - Dashboard payload.
+ */
+function renderKpis(d) {
+  const c = d.counts;
+  const u = d.uptime;
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+  const kpis = [
+    {
+      key: 'devices', label: 'Network devices', value: c.devices,
+      hint: u.total > 0 ? `${u.total} monitored` : 'none monitored yet',
+      cls: '', meter: pct(u.total, c.devices),
+    },
+    {
+      key: 'online', label: 'Devices online', value: u.total ? `${u.up}/${u.total}` : '0/0',
+      hint: u.total ? `${pct(u.up, u.total)}% availability` : 'run a check to start',
+      cls: u.down > 0 ? 'bad' : 'good', meter: pct(u.up, u.total),
+    },
+    {
+      key: 'cables', label: 'Cable runs active', value: c.cablesActive,
+      hint: `${c.cables} total runs`, cls: '', meter: pct(c.cablesActive, c.cables),
+    },
+    {
+      key: 'incidents', label: 'Open incidents', value: c.openIssues,
+      hint: c.openIssues > 0 ? 'require attention' : 'all clear',
+      cls: c.openIssues > 0 ? 'warn' : 'good', meter: 0,
+    },
+    {
+      key: 'conflicts', label: 'IP conflicts', value: c.ipConflicts,
+      hint: c.ipConflicts > 0 ? 'addresses collide' : 'no conflicts',
+      cls: c.ipConflicts > 0 ? 'bad' : 'good', meter: 0,
+    },
+    {
+      key: 'failed', label: 'Failed cable tests', value: c.cablesFailedTest,
+      hint: c.cablesFailedTest > 0 ? 'need re-testing' : 'all passed',
+      cls: c.cablesFailedTest > 0 ? 'bad' : 'good', meter: 0,
+    },
+  ];
+  $('#dashKpis').replaceChildren(...kpis.map((k) => {
+    const card = el('div', 'kpi ' + (k.cls || ''));
+    const top = el('div', 'kpi-top');
+    const meta = el('div');
+    meta.append(el('div', 'kpi-value', String(k.value)), el('div', 'kpi-label', k.label));
+    top.append(el('div', 'kpi-ico', ico(k.key)), meta);
+    const hint = el('div', 'kpi-hint', k.hint);
+    card.append(top, hint, meterFill(k.meter, 'kpi-meter'));
+    return card;
+  }));
+}
+
+/**
+ * Render the availability donut (up/down/not-checked) with a legend.
+ * @param {object} d - Dashboard payload.
+ */
+function renderDonut(d) {
+  const u = d.uptime;
+  const wrap = $('#dashDonut');
+  if (u.total === 0) {
+    wrap.replaceChildren(el('div', 'dash-empty', 'No monitoring data yet. Run a check to see live availability.'));
+    return;
+  }
+  const upDeg = (u.up / u.total) * 360;
+  const downDeg = ((u.up + u.down) / u.total) * 360;
+  const donut = el('div', 'donut');
+  donut.style.background =
+    `conic-gradient(from -90deg, var(--green) 0deg ${upDeg}deg, var(--red) ${upDeg}deg ${downDeg}deg, var(--panel-2) ${downDeg}deg 360deg)`;
+  const hole = el('div', 'donut-hole');
+  hole.append(el('div', 'donut-pct', Math.round((u.up / u.total) * 100) + '%'), el('div', 'donut-cap', 'online'));
+  donut.append(hole);
+
+  const legend = el('div', 'donut-legend');
+  const mkLg = (color, label, n) => {
+    const row = el('div', 'lg-row');
+    const dot = el('span', 'lg-dot');
+    dot.style.background = color;
+    row.append(dot, el('span', 'lg-l', label), el('span', 'lg-n', n));
+    return row;
+  };
+  legend.append(
+    mkLg('var(--green)', 'Up', u.up),
+    mkLg('var(--red)', 'Down', u.down),
+    mkLg('var(--muted)', 'Not checked', u.total - u.up - u.down)
+  );
+  const avgRtt = u.monitored.filter((m) => m.rtt_ms != null);
+  if (avgRtt.length) {
+    const avg = (avgRtt.reduce((s, m) => s + m.rtt_ms, 0) / avgRtt.length).toFixed(0);
+    legend.append(el('div', 'lg-avg', 'Avg RTT  ' + avg + ' ms'));
+  }
+  wrap.replaceChildren(donut, legend);
+}
+
+/**
+ * Render device distribution as horizontal progress meter rows.
+ * @param {object} d - Dashboard payload.
+ */
+function renderTypes(d) {
+  const box = $('#dashTypes');
+  const types = d.deviceTypes || [];
+  if (types.length === 0) { box.append(el('div', 'dash-empty', 'No devices in the inventory yet.')); return; }
+  const max = Math.max(...types.map((t) => Number(t.n)), 1);
+  types.forEach((t) => {
+    const row = el('div', 'type-row');
+    const top = el('div', 'type-top');
+    top.append(el('span', 'type-name', t.device_type || 'Other'), el('span', 'type-n', t.n));
+    row.append(top, meterFill((Number(t.n) / max) * 100));
+    box.append(row);
+  });
+}
+
+/**
+ * Render VLAN utilization rows with a chip, subnet, device count, and meter.
+ * @param {object} d - Dashboard payload.
+ */
+function renderVlans(d) {
+  const box = $('#dashVlans');
+  const vlans = d.vlans || [];
+  if (vlans.length === 0) { box.append(el('div', 'dash-empty', 'No VLANs defined yet.')); return; }
+  const max = Math.max(...vlans.map((v) => Number(v.devices)), 1);
+  vlans.forEach((v) => {
+    const row = el('div', 'vlan-row');
+    const top = el('div', 'vlan-top');
+    top.append(el('span', 'vlan-chip', 'VLAN ' + v.vlan_id), el('span', 'vlan-name', v.name));
+    const meta = el('div', 'vlan-meta');
+    meta.append(el('span', 'vlan-sub', v.subnet || 'no subnet'), el('span', 'vlan-count', v.devices + ' dev'));
+    row.append(top, meta, meterFill((Number(v.devices) / max) * 100));
+    box.append(row);
+  });
+}
+
+/**
+ * Render the most recent open incidents, severity-tinted.
+ * @param {Array} issues - Issue records from /api/v1/issues.
+ */
+function renderIssues(issues) {
+  const box = $('#dashIssues');
+  const open = issues.filter((i) => i.status !== 'Resolved' && i.status !== 'Closed');
+  if (open.length === 0) {
+    box.append(el('div', 'dash-empty', 'No open incidents — everything is calm.'));
+    return;
+  }
+  open.slice(0, 4).forEach((i) => {
+    const row = el('div', 'issue-row sev-' + (i.severity || 'Medium').toLowerCase());
+    const body = el('div', 'issue-body');
+    body.append(el('div', 'issue-title', i.title));
+    const meta = el('div', 'issue-meta');
+    meta.append(
+      el('span', '', i.device_name || 'Unassigned'),
+      el('span', 'dot-sep', '·'),
+      el('span', '', fmtTime(i.created_at)),
+      el('span', 'dot-sep', '·'),
+      el('span', '', i.reporter || '')
+    );
+    body.append(meta);
+    row.append(body, statusPillIssue(i.status));
+    box.append(row);
+  });
+}
+
+/**
+ * Render the monitored device reachability list, sorted by worst status first.
+ * @param {object} d - Dashboard payload.
+ */
+function renderReach(d) {
+  const box = $('#dashUptime');
+  const u = d.uptime;
+  if (u.total === 0) {
+    box.append(el('div', 'dash-empty', 'No monitored devices yet. Enable monitoring or visit the Monitoring tab.'));
+    return;
+  }
+  const order = { down: 0, up: 1, unknown: 2 };
+  const rows = [...u.monitored].sort((a, b) => order[a.status || 'unknown'] - order[b.status || 'unknown']);
+  rows.forEach((m) => {
+    const st = m.status || 'unknown';
+    const row = el('div', 'reach-row');
+    const body = el('div', 'reach-body');
+    body.append(el('div', 'reach-name', m.name));
+    const meta = el('div', 'reach-meta');
+    meta.append(el('span', '', m.ip || 'no IP'), el('span', 'dot-sep', '·'), el('span', '', m.device_type || '—'));
+    body.append(meta);
+    const side = el('div', 'reach-side');
+    if (st === 'up' && m.rtt_ms != null) side.append(el('span', 'reach-rtt', m.rtt_ms + ' ms'));
+    if (st === 'down') side.append(el('span', 'reach-down', 'offline'));
+    if (m.checked_at) side.append(el('span', 'reach-date', fmtTime(m.checked_at)));
+    row.append(el('span', 'dot st-' + st), body, side);
+    box.append(row);
+  });
+}
+
+$('#dashCheckAll').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const results = await api('/api/v1/monitor/check-all', { method: 'POST' });
+    const up = results.filter((r) => r.status === 'up').length;
+    toast(`Done — ${up} up, ${results.length - up} down`, results.length - up > 0 ? 'warn' : 'ok');
+    loadDashboard();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run checks';
+  }
+});
+
+/**
  * Build conflict alert blocks for the dashboard and IP & VLAN views.
- * @param {object} conflicts - Conflict payload from /api/conflicts.
+ * @param {object} conflicts - Conflict payload from /api/v1/conflicts.
  * @returns {Element[]}
  */
 function conflictsBlock(conflicts) {
@@ -250,7 +510,7 @@ let roomsCache = { rooms: [], outlets: [], panels: [] };
  */
 async function loadInfrastructure() {
   const [rooms, outlets, panels, cables] = await Promise.all([
-    api('/api/rooms'), api('/api/outlets'), api('/api/patchpanels'), api('/api/cables'),
+    api('/api/v1/rooms'), api('/api/v1/outlets'), api('/api/v1/patchpanels'), api('/api/v1/cables'),
   ]);
   roomsCache = { rooms, panels, outlets };
 
@@ -258,7 +518,7 @@ async function loadInfrastructure() {
     ? rooms.map((r) => {
         const tr = el('tr');
         tr.append(el('td', '', r.name), el('td', '', r.floor || '—'), el('td', '', r.purpose || '—'));
-        tr.append(rowActions('rooms', r, () => api('/api/rooms/' + r.id, { method: 'DELETE' })));
+        tr.append(rowActions('rooms', r, () => api('/api/v1/rooms/' + r.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No rooms documented yet.')]));
@@ -267,7 +527,7 @@ async function loadInfrastructure() {
     ? outlets.map((o) => {
         const tr = el('tr');
         tr.append(el('td', '', o.label), el('td', '', o.location || '—'), el('td', '', o.room_name));
-        tr.append(rowActions('outlets', o, () => api('/api/outlets/' + o.id, { method: 'DELETE' })));
+        tr.append(rowActions('outlets', o, () => api('/api/v1/outlets/' + o.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No wall outlets documented yet.')]));
@@ -276,7 +536,7 @@ async function loadInfrastructure() {
     ? panels.map((p) => {
         const tr = el('tr');
         tr.append(el('td', '', p.name), el('td', '', p.location || '—'), el('td', '', p.ports));
-        tr.append(rowActions('patchpanels', p, () => api('/api/patchpanels/' + p.id, { method: 'DELETE' })));
+        tr.append(rowActions('patchpanels', p, () => api('/api/v1/patchpanels/' + p.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(4, 'No patch panels documented yet.')]));
@@ -295,7 +555,7 @@ async function loadInfrastructure() {
           el('td', '', testPill(c.test_result)),
           el('td', '', statusPill(c.status))
         );
-        tr.append(rowActions('cables', c, () => api('/api/cables/' + c.id, { method: 'DELETE' })));
+        tr.append(rowActions('cables', c, () => api('/api/v1/cables/' + c.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(10, 'No cable runs logged yet. Wire it up!')]));
@@ -347,13 +607,13 @@ const statusPill = (v) => v === 'Active' ? pill('active', 'Active') : pill('inac
 
 // ---------- IP & VLAN ----------
 /** @type {{rooms: Array, outlets: Array, panels: Array, vlans: Array}} */
-let vlansCache = { rooms: [], outlets: [], panels: [], vlans: [] };
+const vlansCache = { rooms: [], outlets: [], panels: [], vlans: [] };
 
 /**
  * Load VLANs, devices, and IP conflicts. Render conflict alerts and both tables.
  */
 async function loadIpVlan() {
-  const [vlans, devices, conflicts] = await Promise.all([api('/api/vlans'), api('/api/devices'), api('/api/conflicts')]);
+  const [vlans, devices, conflicts] = await Promise.all([api('/api/v1/vlans'), api('/api/v1/devices'), api('/api/v1/conflicts')]);
   vlansCache.vlans = vlans;
 
   $('#ipvlanConflicts').replaceChildren(...conflictsBlock(conflicts));
@@ -372,11 +632,12 @@ async function loadIpVlan() {
           el('td', '', v.name),
           el('td', '', v.subnet || '—'),
           el('td', '', v.gateway || '—'),
-          el('td', '', countByVlan[v.id] || 0)
+          el('td', '', countByVlan[v.id] || 0),
+          rowActions('vlans', v, () => api('/api/v1/vlans/' + v.id, { method: 'DELETE' }))
         );
         return tr;
       })
-    : [emptyRow(5, 'No VLANs defined yet.')]));
+    : [emptyRow(6, 'No VLANs defined yet.')]));
 
   $('#devicesBody').replaceChildren(...(devices.length
     ? devices.map((d) => {
@@ -398,12 +659,12 @@ async function loadIpVlan() {
         toggle.setAttribute('aria-label', `Monitor ${d.name}`);
         toggle.onchange = async () => {
           try {
-            await api('/api/devices/' + d.id, { method: 'PATCH', body: JSON.stringify({ monitored: toggle.checked ? 1 : 0 }) });
+            await api('/api/v1/devices/' + d.id, { method: 'PATCH', body: JSON.stringify({ monitored: toggle.checked ? 1 : 0 }) });
             toast(d.name + ' monitoring ' + (toggle.checked ? 'enabled' : 'disabled'));
           } catch (e) { toggle.checked = !toggle.checked; toast(e.message, 'err'); }
         };
         tdM.append(toggle);
-        tr.append(tdM, rowActions('devices', d, () => api('/api/devices/' + d.id, { method: 'DELETE' })));
+        tr.append(tdM, rowActions('devices', d, () => api('/api/v1/devices/' + d.id, { method: 'DELETE' })));
         return tr;
       })
     : [emptyRow(8, 'No devices in the inventory yet.')]));
@@ -417,7 +678,7 @@ let refreshTimer = null;
  * Shows UP/DOWN, RTT, and provides per-device check + history buttons.
  */
 async function loadMonitoring() {
-  const status = await api('/api/monitor/status');
+  const status = await api('/api/v1/monitor/status');
   const summary = $('#monitorSummary');
   if (status.length === 0) {
     $('#monitorBody').replaceChildren(emptyRow(8, 'No monitored devices yet. Enable monitoring on a device, or add one.'));
@@ -457,7 +718,7 @@ async function doCheck(id, btn) {
   btn.disabled = true;
   btn.replaceChildren(el('span', 'spinner'));
   try {
-    const r = await api('/api/monitor/check/' + id, { method: 'POST' });
+    const r = await api('/api/v1/monitor/check/' + id, { method: 'POST' });
     toast(`${r.name} → ${r.status.toUpperCase()}${r.rttMs != null ? ' (' + r.rttMs + ' ms)' : ''}`,
       r.status === 'up' ? 'ok' : 'warn');
   } catch (e) {
@@ -475,7 +736,7 @@ async function checkAll() {
   btn.disabled = true;
   btn.textContent = 'Checking…';
   try {
-    const results = await api('/api/monitor/check-all', { method: 'POST' });
+    const results = await api('/api/v1/monitor/check-all', { method: 'POST' });
     const up = results.filter((r) => r.status === 'up').length;
     toast(`Done — ${up} up, ${results.length - up} down`, results.length - up > 0 ? 'warn' : 'ok');
   } catch (e) {
@@ -504,7 +765,7 @@ $('#autoRefresh').addEventListener('change', (e) => {
  * @param {{id: number, name: string, ip: string}} s
  */
 async function showHistory(s) {
-  const hist = await api('/api/monitor/history/' + s.id);
+  const hist = await api('/api/v1/monitor/history/' + s.id);
   const pane = $('#historyPane');
   pane.style.display = 'block';
   pane.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -532,7 +793,7 @@ async function showHistory(s) {
  * Load issues, update the nav badge, and render the table.
  */
 async function loadIncidents() {
-  const issues = await api('/api/issues');
+  const issues = await api('/api/v1/issues');
   const badge = $('#openIssueBadge');
   const open = issues.filter((i) => i.status !== 'Resolved' && i.status !== 'Closed').length;
   if (open > 0) { badge.textContent = open; badge.hidden = false; } else badge.hidden = true;
@@ -550,7 +811,7 @@ async function loadIncidents() {
           el('td', '', fmtDate(i.created_at))
         );
         const act = el('td', '');
-        act.append(advanceBtn(i), editBtn('issues', i), delBtn(() => api('/api/issues/' + i.id, { method: 'DELETE' })));
+        act.append(advanceBtn(i), editBtn('issues', i), delBtn(() => api('/api/v1/issues/' + i.id, { method: 'DELETE' })));
         tr.append(act);
         return tr;
       })
@@ -574,7 +835,7 @@ function advanceBtn(issue) {
   const b = el('button', 'btn sm', next === 'Resolved' ? 'Resolve' : '→ In Progress');
   b.onclick = async () => {
     try {
-      await api('/api/issues/' + issue.id, { method: 'PATCH', body: JSON.stringify({ status: next }) });
+      await api('/api/v1/issues/' + issue.id, { method: 'PATCH', body: JSON.stringify({ status: next }) });
       toast(`Incident marked ${next}`);
       reloadCurrent();
     } catch (e) { toast(e.message, 'err'); }
@@ -601,7 +862,7 @@ $('#searchInput').addEventListener('keydown', (e) => {
  * @param {string} q
  */
 async function search(q) {
-  const res = await api('/api/search?q=' + encodeURIComponent(q));
+  const res = await api('/api/v1/search?q=' + encodeURIComponent(q));
   const groups = [];
   if (res.devices.length) groups.push(['Devices', 'ipvlan', res.devices.map((d) => d.name + ' · ' + (d.ip || 'no IP') + ' · ' + (d.device_type || ''))]);
   if (res.cables.length) groups.push(['Cables', 'infrastructure', res.cables.map((c) => `${c.cable_id} → ${c.outlet_label || 'unconnected'} · ${c.status}`)]);
@@ -631,28 +892,28 @@ async function search(q) {
 // ---------- Modals / forms ----------
 const forms = {
   rooms: {
-    title: 'Add room', titleEdit: 'Edit room', post: '/api/rooms',
+    title: 'Add room', titleEdit: 'Edit room', post: '/api/v1/rooms',
     fields: [
       ['name', 'text', 'Room name', true], ['floor', 'text', 'Floor'],
       ['purpose', 'text', 'Purpose', false, null, 'full'],
     ],
   },
   outlets: {
-    title: 'Add wall outlet', titleEdit: 'Edit wall outlet', post: '/api/outlets',
+    title: 'Add wall outlet', titleEdit: 'Edit wall outlet', post: '/api/v1/outlets',
     fields: [
       ['label', 'text', 'Label (e.g. A-101)', true], ['location', 'text', 'Location'],
       ['room_id', 'select', 'Room', false, () => roomsCache.rooms.map((r) => ({ v: r.id, l: r.name }))],
     ],
   },
   patchpanels: {
-    title: 'Add patch panel', titleEdit: 'Edit patch panel', post: '/api/patchpanels',
+    title: 'Add patch panel', titleEdit: 'Edit patch panel', post: '/api/v1/patchpanels',
     fields: [
       ['name', 'text', 'Panel name', true], ['location', 'text', 'Location'],
       ['ports', 'number', 'Ports'],
     ],
   },
   cables: {
-    title: 'Add cable run', titleEdit: 'Edit cable run', post: '/api/cables',
+    title: 'Add cable run', titleEdit: 'Edit cable run', post: '/api/v1/cables',
     fields: [
       ['cable_id', 'text', 'Cable ID', true], ['patch_port', 'text', 'Patch panel port'],
       ['outlet_id', 'select', 'Wall outlet', false, () => roomsCache.outlets.map((o) => ({ v: o.id, l: `${o.label} · ${o.room_name}` }))],
@@ -665,7 +926,7 @@ const forms = {
     ],
   },
   vlans: {
-    title: 'Add VLAN', titleEdit: 'Edit VLAN', post: '/api/vlans',
+    title: 'Add VLAN', titleEdit: 'Edit VLAN', post: '/api/v1/vlans',
     fields: [
       ['vlan_id', 'number', 'VLAN ID', true], ['name', 'text', 'VLAN name', true],
       ['subnet', 'text', 'Subnet (e.g. 192.168.10.0/24)'], ['gateway', 'text', 'Gateway'],
@@ -673,7 +934,7 @@ const forms = {
     ],
   },
   devices: {
-    title: 'Add device', titleEdit: 'Edit device', post: '/api/devices',
+    title: 'Add device', titleEdit: 'Edit device', post: '/api/v1/devices',
     fields: [
       ['name', 'text', 'Device name', true], ['ip', 'text', 'IP address'],
       ['device_type', 'select', 'Device type', false, () => [
@@ -686,7 +947,7 @@ const forms = {
     ],
   },
   issues: {
-    title: 'Log incident', titleEdit: 'Edit incident', post: '/api/issues',
+    title: 'Log incident', titleEdit: 'Edit incident', post: '/api/v1/issues',
     fields: [
       ['title', 'text', 'Short summary', true, null, 'full'],
       ['description', 'textarea', 'Details (symptoms, troubleshooting...)', false, null, 'full'],
@@ -704,7 +965,7 @@ const forms = {
  */
 async function warmCaches() {
   const [rooms, outlets, panels, vlans, devices] = await Promise.all([
-    api('/api/rooms'), api('/api/outlets'), api('/api/patchpanels'), api('/api/vlans'), api('/api/devices'),
+    api('/api/v1/rooms'), api('/api/v1/outlets'), api('/api/v1/patchpanels'), api('/api/v1/vlans'), api('/api/v1/devices'),
   ]);
   roomsCache = { rooms, panels, outlets, vlans };
   window.__devicesCache = devices;
@@ -828,7 +1089,7 @@ $('#content').addEventListener('click', (e) => {
   const exp = e.target.closest('[data-export]');
   if (exp) {
     const a = el('a');
-    a.href = '/api/export/' + exp.dataset.export + '.csv';
+    a.href = '/api/v1/export/' + exp.dataset.export + '.csv';
     a.download = exp.dataset.export + '.csv';
     document.body.append(a);
     a.click();
@@ -858,7 +1119,7 @@ const DEFAULT_LABEL = { router: 'Router', switch: 'Switch', server: 'Server', pc
  */
 async function loadDiagram() {
   const [saved, devices, statuses] = await Promise.all([
-    api('/api/diagram'), api('/api/devices'), api('/api/monitor/status'),
+    api('/api/v1/diagram'), api('/api/v1/devices'), api('/api/v1/monitor/status'),
   ]);
   diag.nodes = saved.nodes || [];
   diag.links = saved.links || [];
@@ -1045,7 +1306,7 @@ function startZoneDrag(z, e) {
   document.addEventListener('pointerup', up);
 }
 
-function startZoneResize(z, e) {
+function startZoneResize(z) {
   const svg = $('#diagCanvas');
   const rect = svg.getBoundingClientRect();
   const sx = z.x, sy = z.y;
@@ -1316,7 +1577,7 @@ $('#diagDeviceLink').addEventListener('change', (e) => {
 });
 
 $('#diagImport').addEventListener('click', async () => {
-  const devices = await api('/api/devices');
+  const devices = await api('/api/v1/devices');
   if (!devices.length) return toast('No devices in the inventory', 'warn');
   const t = { router: 'router', switch: 'switch', server: 'server', workstation: 'pc', printer: 'printer' };
   diag.nodes = devices.map((d, i) => {
@@ -1354,7 +1615,7 @@ $('#diagLayout').addEventListener('click', () => {
 function touchDiagram() {
   clearTimeout(diagSaveTimer);
   diagSaveTimer = setTimeout(async () => {
-    try { await api('/api/diagram', { method: 'PUT', body: JSON.stringify(diag) }); }
+    try { await api('/api/v1/diagram', { method: 'PUT', body: JSON.stringify(diag) }); }
     catch (e) { toast(e.message, 'err'); }
   }, 800);
 }
@@ -1362,7 +1623,7 @@ function touchDiagram() {
 $('#diagSave').addEventListener('click', async () => {
   clearTimeout(diagSaveTimer);
   try {
-    await api('/api/diagram', { method: 'PUT', body: JSON.stringify(diag) });
+    await api('/api/v1/diagram', { method: 'PUT', body: JSON.stringify(diag) });
     toast('Diagram saved');
   } catch (e) { toast(e.message, 'err'); }
 });
@@ -1388,7 +1649,7 @@ function applyOrgBranding(name) {
 function showSetup(mode) {
   setupMode = mode;
   const welcome = mode === 'welcome';
-  $('#setupDemo').closest('.check').style.display = welcome ? '' : 'none';
+  $('#setupDemo').closest('.setup-check').style.display = welcome ? '' : 'none';
   document.querySelector('.setup-box h1').textContent = welcome
     ? 'Network Management Suite'
     : 'Organization Settings';
@@ -1421,10 +1682,9 @@ async function saveSetup() {
     
     // Disable button and show loading state
     btn.disabled = true;
-    const originalText = btn.textContent;
     btn.textContent = demo ? 'Loading...' : 'Saving...';
     
-    const result = await api('/api/setup', { 
+    await api('/api/v1/setup', { 
       method: 'POST', 
       body: JSON.stringify({ org_name: org, demo }) 
     });
@@ -1457,27 +1717,451 @@ $('#setupScreen').addEventListener('click', (e) => { if (e.target === $('#setupS
 $('#setupOrg').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSetup(); });
 $('.sidebar-foot').addEventListener('click', () => showSetup('settings'));
 
+// ---------- WebSocket & Real-Time Updates ----------
+
+let ws = null;
+let wsReconnectTimer = null;
+let wsConnected = false;
+const WS_RECONNECT_DELAY = 5000;
+
+/**
+ * Initialize WebSocket connection for real-time monitoring updates
+ */
+function initWebSocket() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  
+  try {
+    ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      wsConnected = true;
+      showConnectionStatus('connected');
+      
+      // Clear reconnect timer if exists
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      wsConnected = false;
+      showConnectionStatus('error');
+    };
+    
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      wsConnected = false;
+      showConnectionStatus('disconnected');
+      
+      // Attempt to reconnect after delay
+      wsReconnectTimer = setTimeout(() => {
+        console.log('Attempting to reconnect WebSocket...');
+        initWebSocket();
+      }, WS_RECONNECT_DELAY);
+    };
+    
+  } catch (error) {
+    console.error('Failed to initialize WebSocket:', error);
+    wsConnected = false;
+  }
+}
+
+/**
+ * Handle incoming WebSocket messages
+ */
+function handleWebSocketMessage(data) {
+  console.log('WebSocket message:', data.type, data);
+  
+  switch (data.type) {
+    case 'connected':
+      console.log('WebSocket server says:', data.message);
+      break;
+      
+    case 'device_down':
+      handleDeviceDown(data.data);
+      break;
+      
+    case 'device_up':
+      handleDeviceUp(data.data);
+      break;
+      
+    case 'monitoring_cycle_complete':
+      handleMonitoringCycleComplete(data);
+      break;
+      
+    case 'incident_created':
+      handleIncidentCreated(data.data);
+      break;
+      
+    case 'incident_resolved':
+      handleIncidentResolved(data.data);
+      break;
+      
+    default:
+      console.debug('Unknown WebSocket message type:', data.type);
+  }
+}
+
+/**
+ * Handle device going DOWN
+ */
+function handleDeviceDown(alertData) {
+  console.warn('DEVICE DOWN:', alertData.device_name);
+  
+  // Show browser notification
+  showDesktopNotification(
+    `Device Down: ${alertData.device_name}`,
+    `${alertData.device_ip} is not responding`,
+    'critical'
+  );
+  
+  // Play alert sound
+  playAlertSound('critical');
+  
+  // Show toast notification
+  toast(`${alertData.device_name} is DOWN!`, 'err');
+  
+  // Add to event feed
+  addEventToFeed({
+    type: 'device_down',
+    message: `${alertData.device_name} (${alertData.device_ip}) is DOWN`,
+    severity: 'critical',
+    timestamp: alertData.timestamp
+  });
+  
+  // Update device status in current view
+  updateDeviceStatus(alertData.device_id, 'down');
+  
+  // Refresh current tab data
+  if (currentTab === 'dashboard' || currentTab === 'monitoring') {
+    loadTab(currentTab);
+  }
+}
+
+/**
+ * Handle device coming back UP
+ */
+function handleDeviceUp(alertData) {
+  console.info('DEVICE UP:', alertData.device_name);
+  
+  // Show browser notification
+  showDesktopNotification(
+    `Device Recovered: ${alertData.device_name}`,
+    `${alertData.device_ip} is back online (${alertData.rtt_ms}ms)`,
+    'success'
+  );
+  
+  // Play recovery sound
+  playAlertSound('success');
+  
+  // Show toast notification
+  toast(`${alertData.device_name} is back UP!`, 'ok');
+  
+  // Add to event feed
+  addEventToFeed({
+    type: 'device_up',
+    message: `${alertData.device_name} (${alertData.device_ip}) is back UP`,
+    severity: 'info',
+    timestamp: alertData.timestamp
+  });
+  
+  // Update device status in current view
+  updateDeviceStatus(alertData.device_id, 'up');
+  
+  // Refresh current tab data
+  if (currentTab === 'dashboard' || currentTab === 'monitoring') {
+    loadTab(currentTab);
+  }
+}
+
+/**
+ * Handle monitoring cycle completion
+ */
+function handleMonitoringCycleComplete(data) {
+  const summary = data.summary;
+  console.log(`Monitoring cycle: ${summary.up} up, ${summary.down} down (${summary.duration}ms)`);
+  
+  // Update monitoring status indicator
+  updateMonitoringStatus(summary);
+  
+  // Update dashboard if visible
+  if (currentTab === 'dashboard') {
+    $('#dashUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+}
+
+/**
+ * Handle incident creation
+ */
+function handleIncidentCreated(data) {
+  console.log('Incident created:', data.incident_id);
+  
+  toast(`New incident #${data.incident_id}: ${data.device_name}`, 'warn');
+  
+  addEventToFeed({
+    type: 'incident_created',
+    message: `Incident #${data.incident_id} created for ${data.device_name}`,
+    severity: 'warning',
+    timestamp: new Date().toISOString()
+  });
+  
+  // Update incident badge
+  const badge = $('#openIssueBadge');
+  const current = parseInt(badge.textContent) || 0;
+  badge.textContent = current + 1;
+  badge.hidden = false;
+}
+
+/**
+ * Handle incident resolution
+ */
+function handleIncidentResolved(data) {
+  console.log('Incident resolved:', data.incident_id);
+  
+  toast(`Incident #${data.incident_id} auto-resolved`, 'ok');
+  
+  addEventToFeed({
+    type: 'incident_resolved',
+    message: `Incident #${data.incident_id} resolved (${data.device_name})`,
+    severity: 'info',
+    timestamp: new Date().toISOString()
+  });
+  
+  // Update incident badge
+  const badge = $('#openIssueBadge');
+  const current = parseInt(badge.textContent) || 0;
+  if (current > 0) {
+    badge.textContent = current - 1;
+    if (current - 1 === 0) badge.hidden = true;
+  }
+}
+
+/**
+ * Show connection status indicator
+ */
+function showConnectionStatus(status) {
+  let indicator = $('#wsStatus');
+  if (!indicator) {
+    indicator = el('div', 'ws-status');
+    indicator.id = 'wsStatus';
+    document.body.append(indicator);
+  }
+  
+  indicator.className = 'ws-status ws-' + status;
+  
+  const messages = {
+    connected: '● Live',
+    disconnected: '○ Reconnecting...',
+    error: '○ Connection Error'
+  };
+  
+  indicator.textContent = messages[status] || status;
+  
+  // Auto-hide connected status after 3 seconds
+  if (status === 'connected') {
+    setTimeout(() => {
+      indicator.style.opacity = '0.3';
+    }, 3000);
+  } else {
+    indicator.style.opacity = '1';
+  }
+}
+
+/**
+ * Update device status in the UI
+ */
+function updateDeviceStatus(deviceId, status) {
+  // Find device rows in tables and update status
+  document.querySelectorAll(`tr[data-device-id="${deviceId}"]`).forEach(row => {
+    const statusCell = row.querySelector('.device-status');
+    if (statusCell) {
+      statusCell.textContent = status.toUpperCase();
+      statusCell.className = 'device-status status-' + status;
+    }
+  });
+}
+
+/**
+ * Update monitoring status indicator
+ */
+function updateMonitoringStatus(summary) {
+  const indicator = $('#monitoringStatus');
+  if (!indicator) return;
+  
+  indicator.textContent = `${summary.up} up · ${summary.down} down`;
+  indicator.className = summary.down > 0 ? 'monitoring-status status-warning' : 'monitoring-status status-ok';
+}
+
+/**
+ * Show desktop notification (browser API)
+ */
+function showDesktopNotification(title, body, severity = 'info') {
+  if (!('Notification' in window)) {
+    console.warn('Desktop notifications not supported');
+    return;
+  }
+  
+  if (Notification.permission === 'granted') {
+    const icon = severity === 'critical' ? '🔴' : severity === 'warning' ? '⚠️' : '✅';
+    new Notification(title, {
+      body: body,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: 'network-monitor',
+      requireInteraction: severity === 'critical'
+    });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        showDesktopNotification(title, body, severity);
+      }
+    });
+  }
+}
+
+/**
+ * Play alert sound
+ */
+function playAlertSound(type = 'info') {
+  const audioContext = window.AudioContext || window.webkitAudioContext;
+  if (!audioContext) return;
+  
+  try {
+    const ctx = new audioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    // Different tones for different alert types
+    const frequencies = {
+      critical: [800, 600, 800], // Descending then up (urgent)
+      warning: [600, 700],        // Rising tone
+      success: [400, 600, 800],   // Happy ascending
+      info: [500]                 // Single tone
+    };
+    
+    const freq = frequencies[type] || frequencies.info;
+    let time = ctx.currentTime;
+    
+    freq.forEach((f, i) => {
+      oscillator.frequency.setValueAtTime(f, time);
+      gainNode.gain.setValueAtTime(0.1, time);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+      time += 0.15;
+    });
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(time);
+    
+  } catch (error) {
+    console.error('Failed to play alert sound:', error);
+  }
+}
+
+/**
+ * Add event to live event feed
+ */
+const eventFeedItems = [];
+const MAX_FEED_ITEMS = 50;
+
+function addEventToFeed(event) {
+  eventFeedItems.unshift({
+    ...event,
+    timestamp: event.timestamp || new Date().toISOString(),
+    id: Date.now() + Math.random()
+  });
+  
+  // Keep only last 50 events
+  if (eventFeedItems.length > MAX_FEED_ITEMS) {
+    eventFeedItems.pop();
+  }
+  
+  // Update feed display if visible
+  updateEventFeedDisplay();
+}
+
+/**
+ * Update event feed display
+ */
+function updateEventFeedDisplay() {
+  const feedContainer = $('#eventFeed');
+  if (!feedContainer) return;
+  
+  feedContainer.replaceChildren(...eventFeedItems.slice(0, 20).map(event => {
+    const item = el('div', `event-item event-${event.severity}`);
+    const time = new Date(event.timestamp);
+    const timeStr = time.toLocaleTimeString();
+    
+    const icon = {
+      critical: '🔴',
+      warning: '⚠️',
+      info: 'ℹ️',
+      success: '✅'
+    }[event.severity] || '•';
+    
+    item.innerHTML = `
+      <span class="event-time">${timeStr}</span>
+      <span class="event-icon">${icon}</span>
+      <span class="event-message">${event.message}</span>
+    `;
+    
+    return item;
+  }));
+}
+
 // ---------- Init ----------
 window.addEventListener('DOMContentLoaded', async () => {
   try {
-    const setup = await api('/api/setup?t=' + Date.now());
+    const setup = await api('/api/v1/setup?t=' + Date.now());
     
     const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
       .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     currentTab = tab;
     
-    if (!setup.configured) { 
-      showSetup('welcome'); 
-      return; 
-    }
+    // Setup screen disabled - go straight to dashboard
+    // if (!setup.configured) { 
+    //   showSetup('welcome'); 
+    //   return; 
+    // }
     
-    orgSettings = { org_name: setup.org_name };
-    applyOrgBranding(setup.org_name);
+    orgSettings = { org_name: setup.org_name || 'Network Management Suite' };
+    applyOrgBranding(orgSettings.org_name);
     $('#setupScreen').hidden = true;
     await warmCaches();
     goTab(tab);
+    
+    // Initialize WebSocket for real-time updates
+    initWebSocket();
+    
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    
   } catch (e) {
     console.error('Init error:', e);
-    toast('Failed to load app data: ' + (e.message || e), 'err');
+    // Even on error, show the dashboard instead of blocking
+    orgSettings = { org_name: 'Network Management Suite' };
+    applyOrgBranding(orgSettings.org_name);
+    $('#setupScreen').hidden = true;
+    goTab('dashboard');
+    
+    // Still try to connect WebSocket
+    initWebSocket();
   }
 });

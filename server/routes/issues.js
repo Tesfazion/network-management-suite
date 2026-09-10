@@ -1,7 +1,8 @@
 const express = require('express');
-const db = require('../db');
+const db = require('../db').pool;
 const { notFound, badRequest } = require('../lib/errors');
 const validation = require('../lib/validation');
+const pagination = require('../lib/pagination');
 
 const router = express.Router();
 
@@ -11,19 +12,18 @@ const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
 const ORDER_BY_STATUS = `
   CASE i.status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Resolved' THEN 2 ELSE 3 END`;
 
-router.get('/issues', (req, res) => {
-  res.json(db.prepare(`
+router.get('/issues', async (req, res) => {
+  const page = pagination.parse(req.query);
+  const { sql, params } = pagination.apply(`
     SELECT i.*, d.name AS device_name, o.label AS outlet_label
     FROM issues i
     LEFT JOIN devices d ON d.id = i.device_id
     LEFT JOIN outlets o ON o.id = i.outlet_id
-    ORDER BY ${ORDER_BY_STATUS}, i.created_at DESC`).all());
+    ORDER BY ${ORDER_BY_STATUS}, i.created_at DESC`, page);
+  const { rows } = await db.query(sql, params);
+  res.json(rows);
 });
 
-/**
- * Validate and normalize an issue payload.
- * When `current` is provided, missing fields fall back to existing values.
- */
 function issueInput(body, current) {
   const fallback = (key, fb) => body[key] === undefined ? (current ? current[key] : fb) : undefined;
   return {
@@ -37,42 +37,38 @@ function issueInput(body, current) {
   };
 }
 
-router.post('/issues', (req, res) => {
+router.post('/issues', async (req, res) => {
   const input = issueInput(req.body, null);
   if (!input.title) throw badRequest('title is required');
-  const r = db.prepare(`
-    INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter)
-    VALUES (?,?,?,?,?,?,?)`)
-    .run(input.title, input.description || null, input.severity, input.status,
-      input.device_id, input.outlet_id, input.reporter || null);
-  res.json(db.prepare('SELECT * FROM issues WHERE id=?').get(r.lastInsertRowid));
+  const { rows } = await db.query(
+    'INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+    [input.title, input.description || null, input.severity, input.status, input.device_id, input.outlet_id, input.reporter || null]);
+  res.json(rows[0]);
 });
 
-router.patch('/issues/:id', (req, res) => {
-  const issue = db.prepare('SELECT * FROM issues WHERE id=?').get(req.params.id);
+router.patch('/issues/:id', async (req, res) => {
+  const issue = await db.query('SELECT * FROM issues WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
   if (!issue) throw notFound();
   const input = issueInput(req.body, issue);
 
-  // Blank optional relationships are cleared to NULL by the frontend
   const deviceId = input.device_id === null ? null : (input.device_id || issue.device_id);
   const outletId = input.outlet_id === null ? null : (input.outlet_id || issue.outlet_id);
 
-  // Auto-stamp resolved_at when status moves to a terminal state.
   const resolvedAt = (input.status === 'Resolved' || input.status === 'Closed')
     ? (issue.resolved_at || new Date().toISOString().slice(0, 19).replace('T', ' '))
     : null;
 
-  db.prepare(`UPDATE issues SET
-    title=COALESCE(?,title), description=COALESCE(?,description), severity=COALESCE(?,severity),
-    status=?, device_id=?, outlet_id=?,
-    reporter=COALESCE(?,reporter), resolved_at=? WHERE id=?`)
-    .run(input.title || null, input.description || null, input.severity,
-      input.status, deviceId, outletId, input.reporter || null, resolvedAt, req.params.id);
-  res.json(db.prepare('SELECT * FROM issues WHERE id=?').get(req.params.id));
+  await db.query(
+    `UPDATE issues SET title=COALESCE($1,title), description=COALESCE($2,description), severity=COALESCE($3,severity),
+     status=$4, device_id=$5, outlet_id=$6,
+     reporter=COALESCE($7,reporter), resolved_at=$8 WHERE id=$9`,
+    [input.title || null, input.description || null, input.severity, input.status, deviceId, outletId, input.reporter || null, resolvedAt, req.params.id]);
+  const { rows } = await db.query('SELECT * FROM issues WHERE id=$1', [req.params.id]);
+  res.json(rows[0]);
 });
 
-router.delete('/issues/:id', (req, res) => {
-  db.prepare('DELETE FROM issues WHERE id=?').run(req.params.id);
+router.delete('/issues/:id', async (req, res) => {
+  await db.query('DELETE FROM issues WHERE id=$1', [req.params.id]);
   res.json({ ok: true });
 });
 

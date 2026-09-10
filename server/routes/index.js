@@ -12,12 +12,14 @@ const diagram = require('./diagram');
 const search = require('./search');
 const setup = require('./setup');
 const exportRoutes = require('./export');
+const organizations = require('./organizations');
 
 const router = express.Router();
 
 router.use(requireAuth);
 
 router.use(health);
+router.use('/organizations', organizations);
 router.use(dashboard);
 router.use(infrastructure);
 router.use(ipvlan);

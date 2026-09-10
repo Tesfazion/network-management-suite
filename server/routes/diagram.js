@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const db = require('../db').pool;
 
 const router = express.Router();
 
@@ -7,24 +7,21 @@ const DIAGRAM_DEFAULT = { nodes: [], links: [], zones: [] };
 const LIMITS = { nodes: 250, links: 500, zones: 60 };
 const NODE_TYPES = ['router', 'switch', 'server', 'pc', 'printer', 'cloud'];
 
-/** Read the persisted diagram (always returns an object with nodes, links, zones). */
-function getDiagram() {
-  const row = db.prepare('SELECT data FROM diagram WHERE id=1').get();
+async function getDiagram() {
+  const { rows } = await db.query('SELECT data FROM diagram WHERE id=$1', [1]);
+  const row = rows[0];
   if (!row) return DIAGRAM_DEFAULT;
   try { return JSON.parse(row.data); } catch { return DIAGRAM_DEFAULT; }
 }
 
-/**
- * Clamp a numeric value to [min, max], falling back when not a finite number.
- */
 function clampInt(value, min, max, fallback) {
   const n = Math.round(Number(value));
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
 }
 
-router.get('/diagram', (req, res) => res.json(getDiagram()));
+router.get('/diagram', async (req, res) => res.json(await getDiagram()));
 
-router.put('/diagram', (req, res) => {
+router.put('/diagram', async (req, res) => {
   const body = req.body || {};
 
   const zones = (Array.isArray(body.zones) ? body.zones : [])
@@ -57,9 +54,7 @@ router.put('/diagram', (req, res) => {
     .map((l) => ({ from: String(l.from ?? '').slice(0, 64), to: String(l.to ?? '').slice(0, 64) }))
     .filter((l) => l.from && l.to);
 
-  db.prepare(`INSERT INTO diagram (id, data, updated_at) VALUES (1, ?, datetime('now'))
-    ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at`)
-    .run(JSON.stringify({ nodes, links, zones }));
+  await db.query('INSERT INTO diagram (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP) ON CONFLICT (id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at', [1, JSON.stringify({ nodes, links, zones })]);
   res.json({ ok: true, nodes: nodes.length, links: links.length, zones: zones.length });
 });
 

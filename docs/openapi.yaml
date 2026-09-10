@@ -1,0 +1,852 @@
+openapi: 3.0.3
+info:
+  title: Network Management Suite API
+  version: 1.0.0
+  description: REST API for documenting, administering, and monitoring office network infrastructure.
+
+servers:
+  - url: /api/v1
+
+paths:
+  /health/live:
+    get:
+      tags: [System]
+      summary: Liveness probe
+      responses:
+        '200':
+          description: Process is alive
+
+  /health/ready:
+    get:
+      tags: [System]
+      summary: Readiness probe
+      responses:
+        '200':
+          description: Database is reachable
+        '503':
+          description: Database unreachable
+
+  /rooms:
+    get:
+      tags: [Infrastructure]
+      summary: List rooms
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of rooms }
+    post:
+      tags: [Infrastructure]
+      summary: Create room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 80 }
+                floor: { type: string, maxLength: 80 }
+                purpose: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: Created room }
+        '400': { description: Validation error }
+
+  /rooms/{id}:
+    patch:
+      tags: [Infrastructure]
+      summary: Update room
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 80 }
+                floor: { type: string, maxLength: 80 }
+                purpose: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: Updated room }
+        '404': { description: Room not found }
+    delete:
+      tags: [Infrastructure]
+      summary: Delete room
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Room not found }
+
+  /outlets:
+    get:
+      tags: [Infrastructure]
+      summary: List outlets
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of outlets }
+    post:
+      tags: [Infrastructure]
+      summary: Create outlet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [room_id, label]
+              properties:
+                room_id: { type: integer }
+                label: { type: string, maxLength: 80 }
+                location: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: Created outlet }
+        '400': { description: Validation error }
+
+  /outlets/{id}:
+    patch:
+      tags: [Infrastructure]
+      summary: Update outlet
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                room_id: { type: integer }
+                label: { type: string, maxLength: 80 }
+                location: { type: string, maxLength: 120 }
+      responses:
+        '200': { description: Updated outlet }
+        '404': { description: Outlet not found }
+    delete:
+      tags: [Infrastructure]
+      summary: Delete outlet
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Outlet not found }
+
+  /patchpanels:
+    get:
+      tags: [Infrastructure]
+      summary: List patch panels
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of patch panels }
+    post:
+      tags: [Infrastructure]
+      summary: Create patch panel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 80 }
+                location: { type: string, maxLength: 120 }
+                ports: { type: integer, default: 24 }
+      responses:
+        '200': { description: Created patch panel }
+        '400': { description: Validation error }
+
+  /patchpanels/{id}:
+    patch:
+      tags: [Infrastructure]
+      summary: Update patch panel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 80 }
+                location: { type: string, maxLength: 120 }
+                ports: { type: integer }
+      responses:
+        '200': { description: Updated patch panel }
+        '404': { description: Patch panel not found }
+    delete:
+      tags: [Infrastructure]
+      summary: Delete patch panel
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Patch panel not found }
+
+  /cables:
+    get:
+      tags: [Infrastructure]
+      summary: List cable runs
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of cables }
+    post:
+      tags: [Infrastructure]
+      summary: Create cable run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cable_id]
+              properties:
+                cable_id: { type: string, maxLength: 80 }
+                outlet_id: { type: integer }
+                patch_panel_id: { type: integer }
+                patch_port: { type: string, maxLength: 80 }
+                length_m: { type: number }
+                cable_type: { type: string, maxLength: 16, default: Cat6 }
+                test_result: { type: string, enum: [Pass, Fail, Pending], default: Pending }
+                status: { type: string, enum: [Active, Inactive], default: Active }
+                notes: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Created cable }
+        '400': { description: Validation error }
+
+  /cables/{id}:
+    patch:
+      tags: [Infrastructure]
+      summary: Update cable run
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cable_id: { type: string, maxLength: 80 }
+                outlet_id: { type: integer }
+                patch_panel_id: { type: integer }
+                patch_port: { type: string, maxLength: 80 }
+                length_m: { type: number }
+                cable_type: { type: string, maxLength: 16 }
+                test_result: { type: string, enum: [Pass, Fail, Pending] }
+                status: { type: string, enum: [Active, Inactive] }
+                notes: { type: string, maxLength: 500 }
+      responses:
+        '200': { description: Updated cable }
+        '404': { description: Cable not found }
+    delete:
+      tags: [Infrastructure]
+      summary: Delete cable run
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Cable not found }
+
+  /vlans:
+    get:
+      tags: [Network]
+      summary: List VLANs
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of VLANs }
+    post:
+      tags: [Network]
+      summary: Create VLAN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vlan_id, name]
+              properties:
+                vlan_id: { type: integer, minimum: 1, maximum: 4094 }
+                name: { type: string, maxLength: 80 }
+                subnet: { type: string, maxLength: 64 }
+                gateway: { type: string, maxLength: 64 }
+                description: { type: string, maxLength: 2000 }
+      responses:
+        '200': { description: Created VLAN }
+        '400': { description: Validation error }
+
+  /vlans/{id}:
+    patch:
+      tags: [Network]
+      summary: Update VLAN
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                vlan_id: { type: integer, minimum: 1, maximum: 4094 }
+                name: { type: string, maxLength: 80 }
+                subnet: { type: string, maxLength: 64 }
+                gateway: { type: string, maxLength: 64 }
+                description: { type: string, maxLength: 2000 }
+      responses:
+        '200': { description: Updated VLAN }
+        '404': { description: VLAN not found }
+    delete:
+      tags: [Network]
+      summary: Delete VLAN
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted, devices detached }
+        '404': { description: VLAN not found }
+
+  /devices:
+    get:
+      tags: [Network]
+      summary: List devices
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of devices }
+    post:
+      tags: [Network]
+      summary: Create device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 80 }
+                ip: { type: string, format: ipv4 }
+                device_type: { type: string, enum: [Router, Switch, Server, Workstation] }
+                vlan_id: { type: integer }
+                mac: { type: string, maxLength: 32 }
+                location: { type: string, maxLength: 120 }
+                monitored: { type: boolean }
+      responses:
+        '200': { description: Created device }
+        '400': { description: Validation error }
+
+  /devices/{id}:
+    patch:
+      tags: [Network]
+      summary: Update device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 80 }
+                ip: { type: string, format: ipv4 }
+                device_type: { type: string, enum: [Router, Switch, Server, Workstation] }
+                vlan_id: { type: integer }
+                mac: { type: string, maxLength: 32 }
+                location: { type: string, maxLength: 120 }
+                monitored: { type: boolean }
+      responses:
+        '200': { description: Updated device }
+        '404': { description: Device not found }
+    delete:
+      tags: [Network]
+      summary: Delete device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Device not found }
+
+  /conflicts:
+    get:
+      tags: [Network]
+      summary: Detect IP conflicts
+      responses:
+        '200':
+          description: Conflict report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duplicateIps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ip: { type: string }
+                        message: { type: string }
+                        devices:
+                          type: array
+                          items:
+                            type: object
+                  outsideSubnet:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message: { type: string }
+                        deviceId: { type: integer }
+                  gatewayConflicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message: { type: string }
+                        deviceId: { type: integer }
+
+  /monitor/check/{id}:
+    post:
+      tags: [Monitoring]
+      summary: Ping a single device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Ping result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  ip: { type: string }
+                  status: { type: string, enum: [up, down] }
+                  rttMs: { type: number, nullable: true }
+        '404': { description: Device not found or missing IP }
+
+  /monitor/check-all:
+    post:
+      tags: [Monitoring]
+      summary: Ping all monitored devices
+      responses:
+        '200':
+          description: Array of ping results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    name: { type: string }
+                    ip: { type: string }
+                    status: { type: string, enum: [up, down] }
+                    rttMs: { type: number, nullable: true }
+
+  /monitor/status:
+    get:
+      tags: [Monitoring]
+      summary: Latest status per monitored device
+      responses:
+        '200':
+          description: Array of status objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    name: { type: string }
+                    ip: { type: string }
+                    device_type: { type: string }
+                    last_status: { type: string, enum: [up, down] }
+                    last_rtt: { type: number, nullable: true }
+                    last_checked: { type: string }
+
+  /monitor/history/{id}:
+    get:
+      tags: [Monitoring]
+      summary: Last 50 checks for a device
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Array of history entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: integer }
+                    device_id: { type: integer }
+                    status: { type: string, enum: [up, down] }
+                    rtt_ms: { type: number, nullable: true }
+                    checked_at: { type: string }
+
+  /issues:
+    get:
+      tags: [Incidents]
+      summary: List issues
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, maximum: 500 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Array of issues }
+    post:
+      tags: [Incidents]
+      summary: Create issue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, maxLength: 140 }
+                description: { type: string, maxLength: 2000 }
+                severity: { type: string, enum: [Low, Medium, High], default: Medium }
+                status: { type: string, enum: [Open, In Progress, Resolved, Closed], default: Open }
+                device_id: { type: integer }
+                outlet_id: { type: integer }
+                reporter: { type: string, maxLength: 80 }
+      responses:
+        '200': { description: Created issue }
+        '400': { description: Validation error }
+
+  /issues/{id}:
+    patch:
+      tags: [Incidents]
+      summary: Update issue
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 140 }
+                description: { type: string, maxLength: 2000 }
+                severity: { type: string, enum: [Low, Medium, High] }
+                status: { type: string, enum: [Open, In Progress, Resolved, Closed] }
+                device_id: { type: integer }
+                outlet_id: { type: integer }
+                reporter: { type: string, maxLength: 80 }
+      responses:
+        '200': { description: Updated issue }
+        '404': { description: Issue not found }
+    delete:
+      tags: [Incidents]
+      summary: Delete issue
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '404': { description: Issue not found }
+
+  /diagram:
+    get:
+      tags: [Diagram]
+      summary: Load saved diagram
+      responses:
+        '200':
+          description: Diagram state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    maxItems: 250
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, maxLength: 64 }
+                        type: { type: string, enum: [router, switch, server, pc, printer, cloud] }
+                        label: { type: string, maxLength: 80 }
+                        x: { type: integer, minimum: 0, maximum: 10000 }
+                        y: { type: integer, minimum: 0, maximum: 10000 }
+                        device_id: { type: integer, nullable: true }
+                        zone: { type: string, nullable: true }
+                  links:
+                    type: array
+                    maxItems: 500
+                    items:
+                      type: object
+                      properties:
+                        from: { type: string, maxLength: 64 }
+                        to: { type: string, maxLength: 64 }
+                  zones:
+                    type: array
+                    maxItems: 60
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, maxLength: 64 }
+                        label: { type: string, maxLength: 80 }
+                        x: { type: integer, minimum: 0, maximum: 10000 }
+                        y: { type: integer, minimum: 0, maximum: 10000 }
+                        w: { type: integer, minimum: 60, maximum: 10000 }
+                        h: { type: integer, minimum: 60, maximum: 10000 }
+                        room_id: { type: integer, nullable: true }
+    put:
+      tags: [Diagram]
+      summary: Save diagram
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nodes:
+                  type: array
+                  maxItems: 250
+                  items:
+                    type: object
+                links:
+                  type: array
+                  maxItems: 500
+                  items:
+                    type: object
+                zones:
+                  type: array
+                  maxItems: 60
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Save confirmation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  nodes: { type: integer }
+                  links: { type: integer }
+                  zones: { type: integer }
+
+  /search:
+    get:
+      tags: [Utility]
+      summary: Global search
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: Search results grouped by entity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices: { type: array }
+                  cables: { type: array }
+                  outlets: { type: array }
+                  rooms: { type: array }
+                  vlans: { type: array }
+                  issues: { type: array }
+
+  /dashboard:
+    get:
+      tags: [Utility]
+      summary: Aggregate counts and uptime snapshot
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  counts:
+                    type: object
+                    properties:
+                      rooms: { type: integer }
+                      outlets: { type: integer }
+                      cables: { type: integer }
+                      panels: { type: integer }
+                      vlans: { type: integer }
+                      devices: { type: integer }
+                      cablesActive: { type: integer }
+                      cablesFailedTest: { type: integer }
+                      openIssues: { type: integer }
+                      ipConflicts: { type: integer }
+                  uptime:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      up: { type: integer }
+                      down: { type: integer }
+                      monitored: { type: array }
+
+  /setup:
+    get:
+      tags: [Setup]
+      summary: Check setup status
+      responses:
+        '200':
+          description: Setup status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: boolean }
+                  org_name: { type: string }
+                  demo: { type: boolean }
+    post:
+      tags: [Setup]
+      summary: Complete setup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [org_name]
+              properties:
+                org_name: { type: string, maxLength: 120 }
+                demo: { type: boolean }
+      responses:
+        '200': { description: Setup complete }
+
+  /settings:
+    get:
+      tags: [Setup]
+      summary: Current organization settings
+      responses:
+        '200':
+          description: Settings object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  org_name: { type: string }
+                  installed_at: { type: string }
+
+  /export/cables.csv:
+    get:
+      tags: [Export]
+      summary: Export cable log as CSV
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            Content-Type: text/csv; charset=utf-8
+            Content-Disposition: attachment; filename="cable-log.csv"
+
+  /export/devices.csv:
+    get:
+      tags: [Export]
+      summary: Export device inventory as CSV
+      responses:
+        '200':
+          description: CSV file
+          headers:
+            Content-Type: text/csv; charset=utf-8
+            Content-Disposition: attachment; filename="device-inventory.csv"

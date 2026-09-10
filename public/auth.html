@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Management Suite - Sign In</title>
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+  <div class="auth-container">
+    <!-- Background Animation -->
+    <div class="bg-animation">
+      <div class="circle circle-1"></div>
+      <div class="circle circle-2"></div>
+      <div class="circle circle-3"></div>
+    </div>
+
+    <!-- Auth Card -->
+    <div class="auth-card">
+      <!-- Logo and Branding -->
+      <div class="auth-header">
+        <div class="logo">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+            <path d="M24 4L44 14V34L24 44L4 34V14L24 4Z" stroke="url(#gradient)" stroke-width="2" fill="none"/>
+            <circle cx="24" cy="24" r="6" fill="url(#gradient)"/>
+            <defs>
+              <linearGradient id="gradient" x1="4" y1="4" x2="44" y2="44">
+                <stop offset="0%" stop-color="#3b82f6"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h1 class="brand-name">Network Management Suite</h1>
+        <p class="tagline">Enterprise Network Monitoring & Management</p>
+      </div>
+
+      <!-- Login Form -->
+      <div id="loginForm" class="form-container active">
+        <h2>Welcome Back</h2>
+        <p class="form-subtitle">Sign in to your account</p>
+
+        <form id="loginFormElement" autocomplete="on">
+          <div class="form-group">
+            <label for="loginEmail">Email</label>
+            <input 
+              type="email" 
+              id="loginEmail" 
+              name="email"
+              placeholder="you@company.com" 
+              required
+              autocomplete="email"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input 
+              type="password" 
+              id="loginPassword" 
+              name="password"
+              placeholder="••••••••" 
+              required
+              autocomplete="current-password"
+            >
+          </div>
+
+          <div class="form-options">
+            <label class="checkbox-label">
+              <input type="checkbox" name="remember">
+              <span>Remember me</span>
+            </label>
+            <a href="#" class="link">Forgot password?</a>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <span class="btn-text">Sign In</span>
+            <span class="btn-loader" style="display: none;">
+              <span class="spinner"></span>
+            </span>
+          </button>
+
+          <div class="form-divider">
+            <span>New to Network Management Suite?</span>
+          </div>
+
+          <button type="button" class="btn btn-secondary" onclick="showSignup()">
+            Create Account
+          </button>
+        </form>
+
+        <div id="loginError" class="error-message" style="display: none;"></div>
+      </div>
+
+      <!-- Signup Form -->
+      <div id="signupForm" class="form-container">
+        <h2>Get Started</h2>
+        <p class="form-subtitle">Create your account and organization</p>
+
+        <form id="signupFormElement" autocomplete="on">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="signupName">Full Name</label>
+              <input 
+                type="text" 
+                id="signupName" 
+                name="name"
+                placeholder="John Doe" 
+                required
+                autocomplete="name"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="signupEmail">Email</label>
+              <input 
+                type="email" 
+                id="signupEmail" 
+                name="email"
+                placeholder="you@company.com" 
+                required
+                autocomplete="email"
+              >
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="signupOrganization">Organization Name</label>
+            <input 
+              type="text" 
+              id="signupOrganization" 
+              name="organizationName"
+              placeholder="Acme Corporation" 
+              required
+              autocomplete="organization"
+            >
+          </div>
+
+          <div class="form-group">
+            <label for="signupPassword">Password</label>
+            <input 
+              type="password" 
+              id="signupPassword" 
+              name="password"
+              placeholder="Minimum 8 characters" 
+              required
+              autocomplete="new-password"
+              minlength="8"
+            >
+            <small class="form-hint">Must be at least 8 characters long</small>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="terms" required>
+              <span>I agree to the <a href="#" class="link">Terms of Service</a> and <a href="#" class="link">Privacy Policy</a></span>
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <span class="btn-text">Create Account</span>
+            <span class="btn-loader" style="display: none;">
+              <span class="spinner"></span>
+            </span>
+          </button>
+
+          <div class="form-divider">
+            <span>Already have an account?</span>
+          </div>
+
+          <button type="button" class="btn btn-secondary" onclick="showLogin()">
+            Sign In
+          </button>
+        </form>
+
+        <div id="signupError" class="error-message" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="auth-footer">
+      <p>&copy; 2026 Network Management Suite. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="#">Help</a>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>

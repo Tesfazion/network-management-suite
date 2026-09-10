@@ -9,17 +9,15 @@ function errorHandler(err, req, res, next) { // eslint-disable-line no-unused-va
   let status = err.status || 500;
   let message = err.message || 'error';
 
-  if (err.code && err.code.startsWith('SQLITE_CONSTRAINT')) {
-    if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-      status = 409;
-      message = 'duplicate value already exists';
-    } else if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-      status = 400;
-      message = 'references a record that does not exist';
-    } else {
-      status = 409;
-      message = 'constraint violated';
-    }
+  if (err.code === '23505') {
+    status = 409;
+    message = 'duplicate value already exists';
+  } else if (err.code === '23503') {
+    status = 400;
+    message = 'references a record that does not exist';
+  } else if (err.code && ['23514', '23502'].includes(err.code)) {
+    status = 409;
+    message = 'constraint violated';
   }
 
   // Never leak internals for 5xx; log to the server console instead.

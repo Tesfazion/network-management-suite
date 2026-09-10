@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: network_management_suite
+    volumes:
+      - nms-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nms:
+    build: .
+    container_name: network-management-suite
+    image: network-management-suite:2.0.0
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/network_management_suite
+      AUTH_TOKEN: change-me
+      LOG_FORMAT: json
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - nms-uploads:/opt/nms/uploads
+
+volumes:
+  nms-pgdata:
+  nms-uploads:

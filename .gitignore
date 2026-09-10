@@ -1,13 +1,20 @@
 # Dependencies
 node_modules/
 
+# Environment variables (secrets)
+.env
+
 # Database (local data, not for a public repo)
 network.db
 network.db-journal
 network.db-wal
 network.db-shm
 
+# Database backups
+backups/
+
 # Logs
+logs/
 *.log
 npm-debug.log*
 
