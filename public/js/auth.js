@@ -71,7 +71,7 @@ document.getElementById('loginFormElement').addEventListener('submit', async (e)
     localStorage.setItem('organization', JSON.stringify(result.organization));
     
     // Redirect to dashboard
-    window.location.href = '/';
+    window.location.href = '/dashboard.html';
     
   } catch (error) {
     console.error('Login error:', error);
@@ -126,7 +126,7 @@ document.getElementById('signupFormElement').addEventListener('submit', async (e
     localStorage.setItem('organization', JSON.stringify(result.organization));
     
     // Redirect to dashboard with onboarding flag
-    window.location.href = '/?onboarding=true';
+    window.location.href = '/dashboard.html?onboarding=true';
     
   } catch (error) {
     console.error('Signup error:', error);
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(response => {
       if (response.ok) {
         // Already logged in, redirect to dashboard
-        window.location.href = '/';
+        window.location.href = '/dashboard.html';
       } else {
         // Token invalid, clear storage
         localStorage.removeItem('token');

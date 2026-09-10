@@ -1,10 +1,10 @@
 const CSP_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
   "img-src 'self' data:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
+  "font-src 'self' data: https://cdnjs.cloudflare.com",
+  "connect-src 'self' ws: wss:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

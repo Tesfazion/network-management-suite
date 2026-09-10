@@ -1,6 +1,6 @@
 {
   "name": "network-management-suite",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Web application for documenting, administering, and monitoring office network infrastructure: cabling, patch panels, IP/VLAN inventory, and live device monitoring.",
   "main": "server/server.js",
   "scripts": {
@@ -12,6 +12,7 @@
     "clear-cache": "node scripts/clear-cache.js",
     "fresh-start": "node scripts/clear-cache.js && npm start",
     "test": "node --test",
+    "test:functionality": "node scripts/test-functionality.js",
     "lint": "eslint server public/js/app.js"
   },
   "keywords": [
@@ -22,7 +23,7 @@
     "ip-management",
     "network-documentation"
   ],
-  "author": "Wolayita Zone Innovation and Technology Office",
+  "author": "Sunshine Tech Solution IT Teams",
   "license": "MIT",
   "type": "commonjs",
   "engines": {
