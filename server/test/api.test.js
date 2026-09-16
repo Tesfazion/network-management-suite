@@ -3,9 +3,10 @@ const assert = require('node:assert');
 const { Pool } = require('pg');
 
 const dbName = `nms_test_${process.pid}_${Date.now()}`;
-process.env.DATABASE_URL = `postgresql://postgres:Bu0987654321%23@localhost:8869/${dbName}`;
+const testDbUrl = process.env.TEST_DATABASE_URL || 'postgresql://postgres:Bu0987654321%23@localhost:8869';
+process.env.DATABASE_URL = `${testDbUrl}/${dbName}`;
 
-const adminPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
+const adminPool = new Pool({ connectionString: `${testDbUrl}/postgres` });
 
 const app = require('../app');
 
@@ -29,7 +30,7 @@ after(async () => {
   const db = require('../db');
   await db.close();
 
-  const cleanupPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
+  const cleanupPool = new Pool({ connectionString: `${testDbUrl}/postgres` });
   await cleanupPool.query(`DROP DATABASE IF EXISTS "${dbName}"`);
   await cleanupPool.end();
 });
