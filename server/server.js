@@ -1,5 +1,5 @@
 /**
- * Network Management Suite — process entry point.
+ * NetVisor Suite — process entry point.
  * Loads the Express app and listens on the configured port with
  * graceful shutdown on Ctrl+C / SIGTERM.
  */
@@ -15,7 +15,7 @@ if (require.main === module) {
   db.init().then(async () => {
     const server = app.listen(config.port, config.host, async () => {
       const url = config.port === 80 ? 'http://localhost' : `http://localhost:${config.port}`;
-      logger.info(`Network Management Suite v2.0.0 started successfully`);
+      logger.info(`NetVisor Suite v3.0.0 started successfully`);
       logger.info(`Server running at ${url}`);
       if (config.lanIp) logger.info(`LAN access: http://${config.lanIp}:${config.port}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);

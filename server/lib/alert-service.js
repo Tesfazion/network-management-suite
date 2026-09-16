@@ -6,7 +6,6 @@
 const nodemailer = require('nodemailer');
 const https = require('https');
 const http = require('http');
-const { URL } = require('url');
 const logger = require('./logger');
 const config = require('../config');
 
@@ -173,7 +172,7 @@ class AlertService {
       </div>
     </div>
     <div class="footer">
-      This is an automated alert from Network Management Suite monitoring system.
+      This is an automated alert from NetVisor Suite monitoring system.
     </div>
   </div>
 </body>
@@ -199,7 +198,7 @@ ${alertData.rtt_ms ? `Response Time: ${alertData.rtt_ms}ms\n` : ''}Time: ${new D
 Severity: ${alertData.severity.toUpperCase()}
 
 ---
-This is an automated alert from Network Management Suite monitoring system.
+This is an automated alert from NetVisor Suite monitoring system.
     `.trim();
   }
 
@@ -289,7 +288,7 @@ This is an automated alert from Network Management Suite monitoring system.
             short: false
           }
         ],
-        footer: 'Network Management Suite',
+        footer: 'NetVisor Suite',
         ts: Math.floor(new Date(alertData.timestamp).getTime() / 1000)
       }]
     };

@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Network Management Suite API
+  title: NetVisor Suite API
   version: 1.0.0
   description: REST API for documenting, administering, and monitoring office network infrastructure.
 

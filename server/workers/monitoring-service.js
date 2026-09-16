@@ -108,7 +108,7 @@ class MonitoringService {
    */
   async getMonitoredDevices() {
     const result = await db.query(
-      'SELECT id, name, ip, device_type, last_status FROM devices WHERE monitored = true ORDER BY id'
+      'SELECT id, name, ip, device_type, last_status, org_id FROM devices WHERE monitored = 1 ORDER BY id'
     );
     return result.rows;
   }
@@ -219,7 +219,8 @@ class MonitoringService {
       device_type: device.device_type,
       status: 'down',
       timestamp: timestamp.toISOString(),
-      severity: 'critical'
+      severity: 'critical',
+      org_id: device.org_id
     };
 
     // Broadcast to WebSocket clients
@@ -265,7 +266,8 @@ class MonitoringService {
       status: 'up',
       rtt_ms: rttMs,
       timestamp: timestamp.toISOString(),
-      severity: 'info'
+      severity: 'info',
+      org_id: device.org_id
     };
 
     // Broadcast to WebSocket clients
@@ -305,9 +307,9 @@ class MonitoringService {
       // Check if there's already an open incident for this device
       const existing = await db.query(
         `SELECT id FROM issues 
-         WHERE device_id = $1 AND status IN ('Open', 'In Progress') 
+         WHERE device_id = $1 AND org_id = $2 AND status IN ('Open', 'In Progress') 
          ORDER BY created_at DESC LIMIT 1`,
-        [device.id]
+        [device.id, device.org_id]
       );
 
       if (existing.rows.length > 0) {
@@ -317,8 +319,8 @@ class MonitoringService {
 
       // Create new incident
       const result = await db.query(
-        `INSERT INTO issues (title, description, severity, status, device_id, reporter, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO issues (title, description, severity, status, device_id, reporter, created_at, org_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
         [
           `${device.name} is offline`,
@@ -327,7 +329,8 @@ class MonitoringService {
           'Open',
           device.id,
           'Monitoring System',
-          timestamp
+          timestamp,
+          device.org_id
         ]
       );
 
@@ -360,9 +363,9 @@ class MonitoringService {
          SET status = 'Resolved', 
              resolved_at = $1,
              description = description || E'\n\nAuto-resolved: Device came back online at ' || $2
-         WHERE device_id = $3 AND status IN ('Open', 'In Progress')
+         WHERE device_id = $3 AND org_id = $4 AND status IN ('Open', 'In Progress')
          RETURNING id`,
-        [timestamp, timestamp.toLocaleString(), device.id]
+        [timestamp, timestamp.toLocaleString(), device.id, device.org_id]
       );
 
       if (result.rows.length > 0) {
@@ -391,9 +394,9 @@ class MonitoringService {
   async logAlert(deviceId, alertType, alertData) {
     try {
       await db.query(
-        `INSERT INTO alert_log (device_id, alert_type, alert_data, created_at)
-         VALUES ($1, $2, $3, $4)`,
-        [deviceId, alertType, JSON.stringify(alertData), new Date()]
+        `INSERT INTO alert_log (device_id, alert_type, alert_data, created_at, org_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [deviceId, alertType, JSON.stringify(alertData), new Date(), alertData.org_id || null]
       );
     } catch (error) {
       // Don't fail the whole process if logging fails

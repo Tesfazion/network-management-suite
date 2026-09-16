@@ -2,7 +2,7 @@ const db = require('../server/db');
 const { loadDemo } = require('../server/seed-data');
 
 const orgArg = process.argv.find((a) => a.startsWith('--org='));
-const org = (orgArg ? orgArg.split('=')[1] : '').trim() || 'Network Management Suite';
+const org = (orgArg ? orgArg.split('=')[1] : '').trim() || 'NetVisor Suite';
 const demo = process.argv.includes('--demo');
 
 async function main() {

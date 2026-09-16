@@ -3,7 +3,7 @@
  * Broadcasts monitoring events and alerts to all connected clients
  */
 
-const WebSocket = require('ws');
+const WS = require('ws');
 const logger = require('./logger');
 
 class WebSocketServer {
@@ -17,7 +17,7 @@ class WebSocketServer {
    * @param {http.Server} httpServer - HTTP server instance to attach to
    */
   initialize(httpServer) {
-    this.wss = new WebSocket.Server({ 
+    this.wss = new WS.Server({ 
       server: httpServer,
       path: '/ws',
       perMessageDeflate: false
@@ -32,7 +32,7 @@ class WebSocketServer {
       // Send welcome message
       ws.send(JSON.stringify({
         type: 'connected',
-        message: 'Connected to Network Management Suite monitoring system',
+        message: 'Connected to NetVisor Suite monitoring system',
         timestamp: new Date().toISOString()
       }));
 
@@ -60,7 +60,7 @@ class WebSocketServer {
 
       // Send ping every 30 seconds to keep connection alive
       const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === WS.OPEN) {
           ws.ping();
         } else {
           clearInterval(pingInterval);
@@ -110,7 +110,7 @@ class WebSocketServer {
     let sentCount = 0;
 
     this.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WS.OPEN) {
         try {
           client.send(message);
           sentCount++;
@@ -129,7 +129,7 @@ class WebSocketServer {
    * @param {object} data - Data to send
    */
   sendToClient(client, data) {
-    if (client.readyState === WebSocket.OPEN) {
+    if (client.readyState === WS.OPEN) {
       try {
         client.send(JSON.stringify(data));
       } catch (error) {

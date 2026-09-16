@@ -69,7 +69,7 @@ function optionalAuth(req, res, next) {
         orgRole: decoded.orgRole
       };
     }
-  } catch (error) {
+  } catch {
     // Ignore errors in optional auth
   }
 

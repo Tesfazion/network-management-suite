@@ -16,6 +16,9 @@ const organizations = require('./organizations');
 
 const router = express.Router();
 
+// Optional bearer-token protection (no-op when AUTH_TOKEN is not configured,
+// keeping local/office installs frictionless while still supporting the
+// documented `AUTH_TOKEN` security mode).
 router.use(requireAuth);
 
 router.use(health);

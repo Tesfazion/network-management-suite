@@ -1,7 +1,11 @@
 const express = require('express');
 const db = require('../db').pool;
+const { setDefaultOrg } = require('../middleware/default-org');
 
 const router = express.Router();
+
+// Use default org for unauthenticated access
+router.use(setDefaultOrg);
 
 function toCsv(rows, headers) {
   const esc = (v) => {
@@ -27,7 +31,8 @@ router.get('/export/cables.csv', async (req, res) => {
     LEFT JOIN outlets o ON o.id = c.outlet_id
     LEFT JOIN rooms r ON r.id = o.room_id
     LEFT JOIN patch_panels pp ON pp.id = c.patch_panel_id
-    ORDER BY c.cable_id`);
+    WHERE c.org_id = $1
+    ORDER BY c.cable_id`, [req.user.orgId]);
   sendCsv(res, 'cable-log.csv', rows, [
     ['Cable ID', 'cable_id'], ['Room', 'room'], ['Outlet', 'outlet'], ['Outlet Location', 'outlet_location'],
     ['Patch Panel', 'panel'], ['Port', 'patch_port'], ['Type', 'cable_type'],
@@ -39,7 +44,8 @@ router.get('/export/devices.csv', async (req, res) => {
   const { rows } = await db.query(`
     SELECT d.name, d.ip, d.device_type, d.mac, d.location, v.vlan_id AS vlan, v.name AS vlan_name, d.monitored
     FROM devices d LEFT JOIN vlans v ON v.id = d.vlan_id
-    ORDER BY d.name`);
+    WHERE d.org_id = $1
+    ORDER BY d.name`, [req.user.orgId]);
   sendCsv(res, 'device-inventory.csv', rows, [
     ['Name', 'name'], ['IP', 'ip'], ['Type', 'device_type'], ['MAC', 'mac'], ['Location', 'location'],
     ['VLAN ID', 'vlan'], ['VLAN Name', 'vlan_name'], ['Monitored', 'monitored'],

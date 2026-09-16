@@ -3,26 +3,33 @@ const db = require('../db').pool;
 const { notFound } = require('../lib/errors');
 const validation = require('../lib/validation');
 const pagination = require('../lib/pagination');
+const { setDefaultOrg } = require('../middleware/default-org');
 
 const router = express.Router();
 
+// Use default org for unauthenticated access
+router.use(setDefaultOrg);
+
 router.get('/rooms', async (req, res) => {
+  const orgId = req.user.orgId;
   const page = pagination.parse(req.query);
-  const { sql, params } = pagination.apply('SELECT * FROM rooms ORDER BY name', page);
+  const { sql, params } = pagination.apply('SELECT * FROM rooms WHERE org_id = $1 ORDER BY name', page, [orgId]);
   const { rows } = await db.query(sql, params);
   res.json(rows);
 });
 
 router.post('/rooms', async (req, res) => {
+  const orgId = req.user.orgId;
   const name = validation.textRequired(req.body.name, validation.LIMITS.name, 'name');
   const floor = validation.text(req.body.floor, validation.LIMITS.label);
   const purpose = validation.text(req.body.purpose, 120);
-  const { rows } = await db.query('INSERT INTO rooms (name, floor, purpose) VALUES ($1,$2,$3) RETURNING *', [name, floor || null, purpose || null]);
+  const { rows } = await db.query('INSERT INTO rooms (name, floor, purpose, org_id) VALUES ($1,$2,$3,$4) RETURNING *', [name, floor || null, purpose || null, orgId]);
   res.json(rows[0]);
 });
 
 router.patch('/rooms/:id', async (req, res) => {
-  const room = await db.query('SELECT * FROM rooms WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const room = await db.query('SELECT * FROM rooms WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!room) throw notFound();
   const name = req.body.name === undefined
     ? room.name
@@ -33,36 +40,41 @@ router.patch('/rooms/:id', async (req, res) => {
   const purpose = req.body.purpose === undefined
     ? room.purpose
     : (validation.text(req.body.purpose, 120) || null);
-  await db.query('UPDATE rooms SET name=$1, floor=$2, purpose=$3 WHERE id=$4', [name, floor, purpose, req.params.id]);
-  const { rows } = await db.query('SELECT * FROM rooms WHERE id=$1', [req.params.id]);
+  await db.query('UPDATE rooms SET name=$1, floor=$2, purpose=$3 WHERE id=$4 AND org_id=$5', [name, floor, purpose, req.params.id, orgId]);
+  const { rows } = await db.query('SELECT * FROM rooms WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json(rows[0]);
 });
 
 router.delete('/rooms/:id', async (req, res) => {
-  await db.query('DELETE FROM rooms WHERE id=$1', [req.params.id]);
+  const orgId = req.user.orgId;
+  await db.query('DELETE FROM rooms WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json({ ok: true });
 });
 
 router.get('/outlets', async (req, res) => {
+  const orgId = req.user.orgId;
   const page = pagination.parse(req.query);
   const { sql, params } = pagination.apply(`
     SELECT outlets.*, rooms.name AS room_name
     FROM outlets JOIN rooms ON rooms.id = outlets.room_id
-    ORDER BY outlets.label`, page);
+    WHERE outlets.org_id = $1
+    ORDER BY outlets.label`, page, [orgId]);
   const { rows } = await db.query(sql, params);
   res.json(rows);
 });
 
 router.post('/outlets', async (req, res) => {
+  const orgId = req.user.orgId;
   const room_id = validation.requiredId(req.body.room_id, 'room_id');
   const label = validation.textRequired(req.body.label, validation.LIMITS.label, 'label');
   const location = validation.text(req.body.location, validation.LIMITS.location);
-  const { rows } = await db.query('INSERT INTO outlets (room_id, label, location) VALUES ($1,$2,$3) RETURNING *', [room_id, label, location || null]);
+  const { rows } = await db.query('INSERT INTO outlets (room_id, label, location, org_id) VALUES ($1,$2,$3,$4) RETURNING *', [room_id, label, location || null, orgId]);
   res.json(rows[0]);
 });
 
 router.patch('/outlets/:id', async (req, res) => {
-  const outlet = await db.query('SELECT * FROM outlets WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const outlet = await db.query('SELECT * FROM outlets WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!outlet) throw notFound();
   const room_id = req.body.room_id === undefined
     ? outlet.room_id
@@ -73,33 +85,37 @@ router.patch('/outlets/:id', async (req, res) => {
   const location = req.body.location === undefined
     ? outlet.location
     : (validation.text(req.body.location, validation.LIMITS.location) || null);
-  await db.query('UPDATE outlets SET room_id=$1, label=$2, location=$3 WHERE id=$4', [room_id, label, location, req.params.id]);
-  const { rows } = await db.query('SELECT * FROM outlets WHERE id=$1', [req.params.id]);
+  await db.query('UPDATE outlets SET room_id=$1, label=$2, location=$3 WHERE id=$4 AND org_id=$5', [room_id, label, location, req.params.id, orgId]);
+  const { rows } = await db.query('SELECT * FROM outlets WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json(rows[0]);
 });
 
 router.delete('/outlets/:id', async (req, res) => {
-  await db.query('DELETE FROM outlets WHERE id=$1', [req.params.id]);
+  const orgId = req.user.orgId;
+  await db.query('DELETE FROM outlets WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json({ ok: true });
 });
 
 router.get('/patchpanels', async (req, res) => {
+  const orgId = req.user.orgId;
   const page = pagination.parse(req.query);
-  const { sql, params } = pagination.apply('SELECT * FROM patch_panels ORDER BY name', page);
+  const { sql, params } = pagination.apply('SELECT * FROM patch_panels WHERE org_id = $1 ORDER BY name', page, [orgId]);
   const { rows } = await db.query(sql, params);
   res.json(rows);
 });
 
 router.post('/patchpanels', async (req, res) => {
+  const orgId = req.user.orgId;
   const name = validation.textRequired(req.body.name, validation.LIMITS.name, 'name');
   const location = validation.text(req.body.location, validation.LIMITS.location);
   const ports = validation.optionalInt(req.body.ports);
-  const { rows } = await db.query('INSERT INTO patch_panels (name, location, ports) VALUES ($1,$2,$3) RETURNING *', [name, location || null, ports ?? 24]);
+  const { rows } = await db.query('INSERT INTO patch_panels (name, location, ports, org_id) VALUES ($1,$2,$3,$4) RETURNING *', [name, location || null, ports ?? 24, orgId]);
   res.json(rows[0]);
 });
 
 router.patch('/patchpanels/:id', async (req, res) => {
-  const panel = await db.query('SELECT * FROM patch_panels WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const panel = await db.query('SELECT * FROM patch_panels WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!panel) throw notFound();
   const name = req.body.name === undefined
     ? panel.name
@@ -110,15 +126,16 @@ router.patch('/patchpanels/:id', async (req, res) => {
   const ports = req.body.ports === undefined
     ? panel.ports
     : (validation.optionalInt(req.body.ports) ?? panel.ports);
-  await db.query('UPDATE patch_panels SET name=$1, location=$2, ports=$3 WHERE id=$4', [name, location, ports, req.params.id]);
-  const { rows } = await db.query('SELECT * FROM patch_panels WHERE id=$1', [req.params.id]);
+  await db.query('UPDATE patch_panels SET name=$1, location=$2, ports=$3 WHERE id=$4 AND org_id=$5', [name, location, ports, req.params.id, orgId]);
+  const { rows } = await db.query('SELECT * FROM patch_panels WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json(rows[0]);
 });
 
 router.delete('/patchpanels/:id', async (req, res) => {
-  const panel = await db.query('SELECT * FROM patch_panels WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const panel = await db.query('SELECT * FROM patch_panels WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!panel) throw notFound();
-  await db.query('DELETE FROM patch_panels WHERE id=$1', [req.params.id]);
+  await db.query('DELETE FROM patch_panels WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json({ ok: true });
 });
 
@@ -126,6 +143,7 @@ const TEST_RESULTS = ['Pass', 'Fail', 'Pending'];
 const CABLE_STATUSES = ['Active', 'Inactive'];
 
 router.get('/cables', async (req, res) => {
+  const orgId = req.user.orgId;
   const page = pagination.parse(req.query);
   const { sql, params } = pagination.apply(`
     SELECT c.*, o.label AS outlet_label, o.location AS outlet_location,
@@ -134,12 +152,14 @@ router.get('/cables', async (req, res) => {
     LEFT JOIN outlets o ON o.id = c.outlet_id
     LEFT JOIN rooms r ON r.id = o.room_id
     LEFT JOIN patch_panels pp ON pp.id = c.patch_panel_id
-    ORDER BY c.cable_id`, page);
+    WHERE c.org_id = $1
+    ORDER BY c.cable_id`, page, [orgId]);
   const { rows } = await db.query(sql, params);
   res.json(rows);
 });
 
 router.post('/cables', async (req, res) => {
+  const orgId = req.user.orgId;
   const cable_id = validation.textRequired(req.body.cable_id, validation.LIMITS.label, 'cable_id');
   const outlet_id = validation.optionalId(req.body.outlet_id, 'outlet_id');
   const patch_panel_id = validation.optionalId(req.body.patch_panel_id, 'patch_panel_id');
@@ -151,13 +171,14 @@ router.post('/cables', async (req, res) => {
   const notes = validation.text(req.body.notes, validation.LIMITS.notes);
 
   const { rows } = await db.query(
-    'INSERT INTO cables (cable_id, outlet_id, patch_panel_id, patch_port, length_m, cable_type, test_result, status, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
-    [cable_id, outlet_id, patch_panel_id, patch_port || null, length_m, cable_type || 'Cat6', test_result, status, notes || null]);
+    'INSERT INTO cables (cable_id, outlet_id, patch_panel_id, patch_port, length_m, cable_type, test_result, status, notes, org_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+    [cable_id, outlet_id, patch_panel_id, patch_port || null, length_m, cable_type || 'Cat6', test_result, status, notes || null, orgId]);
   res.json(rows[0]);
 });
 
 router.patch('/cables/:id', async (req, res) => {
-  const cable = await db.query('SELECT * FROM cables WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const cable = await db.query('SELECT * FROM cables WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!cable) throw notFound();
   const body = req.body;
   const fields = {};
@@ -174,14 +195,15 @@ router.patch('/cables/:id', async (req, res) => {
   if (Object.keys(fields).length === 0) return res.json(cable);
   const keys = Object.keys(fields);
   const sets = keys.map((k, i) => `${k}=$${i + 1}`).join(', ');
-  const values = [...Object.values(fields), req.params.id];
-  await db.query(`UPDATE cables SET ${sets} WHERE id=$${values.length}`, values);
-  const { rows } = await db.query('SELECT * FROM cables WHERE id=$1', [req.params.id]);
+  const values = [...Object.values(fields), req.params.id, orgId];
+  await db.query(`UPDATE cables SET ${sets} WHERE id=$${values.length - 1} AND org_id=$${values.length}`, values);
+  const { rows } = await db.query('SELECT * FROM cables WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json(rows[0]);
 });
 
 router.delete('/cables/:id', async (req, res) => {
-  await db.query('DELETE FROM cables WHERE id=$1', [req.params.id]);
+  const orgId = req.user.orgId;
+  await db.query('DELETE FROM cables WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json({ ok: true });
 });
 

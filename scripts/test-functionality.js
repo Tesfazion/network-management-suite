@@ -237,6 +237,18 @@ async function testInviteMember() {
   const inviteEmail = `invite-${Date.now()}@example.com`;
   
   try {
+    // Product rule: a user must sign up before they can be invited.
+    const signup = await request('POST', '/api/auth/signup', {
+      email: inviteEmail,
+      password: TEST_PASSWORD,
+      name: 'Invitee',
+      organizationName: TEST_ORG + ' Invitee'
+    });
+    if (signup.status !== 200) {
+      log(`Invitee signup failed: ${signup.data.error || 'Unknown error'}`, 'error');
+      return false;
+    }
+
     const res = await request('POST', `/api/organizations/${orgId}/members`, {
       email: inviteEmail,
       role: 'member'
@@ -355,7 +367,7 @@ async function testHealthEndpoint() {
 
 async function runTests() {
   console.log('\n' + '='.repeat(60));
-  console.log('  Network Management Suite - Functionality Test');
+  console.log('  NetVisor Suite - Functionality Test');
   console.log('='.repeat(60) + '\n');
   
   log(`Testing against: ${BASE_URL}`, 'info');

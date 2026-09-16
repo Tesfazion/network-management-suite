@@ -4,13 +4,12 @@ const { notFound, badRequest } = require('../lib/errors');
 const { ipConflicts } = require('../lib/iputil');
 const validation = require('../lib/validation');
 const pagination = require('../lib/pagination');
-const { authenticate, requireOrganization } = require('../middleware/authenticate');
+const { setDefaultOrg } = require('../middleware/default-org');
 
 const router = express.Router();
 
-// Apply authentication and org context to all routes
-router.use(authenticate);
-router.use(requireOrganization);
+// Use default org for unauthenticated access
+router.use(setDefaultOrg);
 
 router.get('/vlans', async (req, res) => {
   const orgId = req.user.orgId;

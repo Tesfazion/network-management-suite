@@ -9,7 +9,6 @@ const { rateLimit } = require('./middleware/rateLimit');
 const { requestId } = require('./middleware/requestId');
 const { errorHandler } = require('./middleware/errors');
 const apiRouter = require('./routes');
-const authRouter = require('./routes/auth');
 
 const app = express();
 
@@ -66,9 +65,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// Authentication routes (no rate limit on auth for better UX)
-app.use('/api/auth', authRouter);
 
 app.use('/api/v1', rateLimit);
 app.use('/api/v1', apiRouter);

@@ -41,9 +41,9 @@ async function req(method, url, body) {
   return { status: res.status, data };
 }
 
-test('schema migrations ran: version is 2', async () => {
+test('schema migrations ran: version is at least 4 (multi-tenancy applied)', async () => {
   const { rows } = await db.pool.query('SELECT MAX(version) AS v FROM schema_migrations');
-  assert.strictEqual(rows[0].v, 2);
+  assert.ok(rows[0].v >= 4, `expected schema version >= 4, got ${rows[0].v}`);
 });
 
 test('VLAN DELETE detaches its devices and removes the VLAN', async () => {

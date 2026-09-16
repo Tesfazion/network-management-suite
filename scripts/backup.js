@@ -1,5 +1,5 @@
 /**
- * Network Management Suite - database backup utility.
+ * NetVisor Suite - database backup utility.
  *
  * For PostgreSQL, uses `pg_dump` to create a SQL dump and prunes old backups.
  *

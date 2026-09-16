@@ -96,6 +96,14 @@ CREATE TABLE IF NOT EXISTS monitor_history (
   checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS monitoring_history (
+  id SERIAL PRIMARY KEY,
+  device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  rtt_ms REAL,
+  checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS diagram (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[],"zones":[]}',
@@ -104,7 +112,7 @@ CREATE TABLE IF NOT EXISTS diagram (
 
 CREATE TABLE IF NOT EXISTS settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
-  org_name TEXT DEFAULT 'Network Management Suite',
+  org_name TEXT DEFAULT 'NetVisor Suite',
   installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -291,6 +299,33 @@ UPDATE vlans SET org_id = '00000000-0000-0000-0000-000000000001' WHERE org_id IS
 UPDATE devices SET org_id = '00000000-0000-0000-0000-000000000001' WHERE org_id IS NULL;
 UPDATE issues SET org_id = '00000000-0000-0000-0000-000000000001' WHERE org_id IS NULL;
 UPDATE alert_log SET org_id = '00000000-0000-0000-0000-000000000001' WHERE org_id IS NULL;
+    `,
+  },
+  {
+    version: 5,
+    name: 'per-org diagram rows (fix multi-tenant saves)',
+    sql: `
+-- Rewrite diagram to support one row per organization (id is always 1, keyed by org_id)
+CREATE TABLE IF NOT EXISTS diagram_new (
+  id INTEGER NOT NULL DEFAULT 1,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  data TEXT NOT NULL DEFAULT '{"nodes":[],"links":[],"zones":[]}',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (org_id, id)
+);
+
+INSERT INTO organizations (id, name, slug, subscription_tier, max_devices)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Default Organization', 'default', 'enterprise', 999999)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO diagram_new (id, org_id, data, updated_at)
+SELECT 1, COALESCE(org_id, '00000000-0000-0000-0000-000000000001'), data, updated_at
+FROM diagram;
+
+DROP TABLE IF EXISTS diagram;
+ALTER TABLE diagram_new RENAME TO diagram;
+
+CREATE INDEX IF NOT EXISTS idx_diagram_org ON diagram(org_id);
     `,
   },
 ];

@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 echo "=============================================="
-echo "  Network Management Suite - Linux install"
+echo "  NetVisor Suite - Linux install"
 echo "=============================================="
 echo
 
@@ -23,7 +23,7 @@ fi
 
 PORT="${PORT:-8080}"
 echo
-echo "Starting Network Management Suite on port $PORT..."
+echo "Starting NetVisor Suite on port $PORT..."
 echo "  Local:  http://localhost:$PORT"
 echo "  LAN:    http://<this-computer-ip>:$PORT"
 echo

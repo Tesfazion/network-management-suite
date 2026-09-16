@@ -1,14 +1,32 @@
-# Network Management Suite
+# NetVisor Suite
 
-**Version 2.0.1** | Multi-Tenant SaaS Platform | Enterprise Network Management
+**Version 3.0.0** | Multi-Tenant Network Management Platform | Enterprise Infrastructure Visibility
 
 A modern, professional network management platform with enterprise-grade features, team collaboration, and real-time monitoring capabilities. Self-hosted, secure, and production-ready.
 
 ---
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [API Reference](#api-reference)
+- [Security](#security)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Documentation](#documentation)
+- [Support](#support)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
 ## Overview
 
-Network Management Suite is an enterprise-grade SaaS platform designed for organizations that need to manage, monitor, and document network infrastructure across multiple locations with team collaboration.
+NetVisor Suite is an enterprise-grade platform designed for organizations that need to manage, monitor, and document network infrastructure across multiple locations with team collaboration.
 
 **Key Capabilities:**
 - Multi-tenant architecture with complete data isolation
@@ -20,41 +38,7 @@ Network Management Suite is an enterprise-grade SaaS platform designed for organ
 
 ---
 
-## Quick Start
-
-### Prerequisites
-
-- Node.js >= 22.0.0
-- PostgreSQL >= 14
-- Modern web browser
-
-### Installation
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/network-management-suite.git
-cd network-management-suite
-
-# Install dependencies
-npm install
-
-# Configure database (edit .env file)
-DATABASE_URL=postgresql://user:password@localhost:5432/network_db
-
-# Setup database schema
-npm run setup
-
-# Start server
-npm start
-```
-
-Access the application at **http://localhost:9090**
-
-**Detailed installation guide:** [COMPLETE-SETUP-GUIDE.md](COMPLETE-SETUP-GUIDE.md)
-
----
-
-## Core Features
+## Features
 
 ### Authentication & Security
 - JWT-based authentication with bcrypt password hashing
@@ -88,41 +72,37 @@ Access the application at **http://localhost:9090**
 - Activity tracking (last login, join date)
 - Member management (role changes, removal)
 
-**Complete feature list:** [PROJECT-STATUS.md](PROJECT-STATUS.md)
-
 ---
 
-## Documentation
+## Quick Start
 
-### Getting Started
-- [Complete Setup Guide](COMPLETE-SETUP-GUIDE.md) - Detailed installation and configuration
-- [Changelog](CHANGELOG.md) - Version history and release notes
-- [Latest Changes](LATEST-CHANGES.md) - Recent updates in v2.0.1
+### Prerequisites
 
-### Technical Documentation
-- [API Documentation](openapi.yaml) - OpenAPI 3.0 specification
-- [Security Policy](docs/SECURITY.md) - Security practices and vulnerability reporting
-- [Production Deployment](docs/PRODUCTION-DEPLOYMENT-GUIDE.md) - Cloud and on-premise deployment
-- [Enterprise Features](docs/ENTERPRISE-FEATURES.md) - Monitoring and alerting configuration
+- Node.js >= 22.0.0
+- PostgreSQL >= 14
+- Modern web browser
 
-### Compliance & Quality
-- [Software Rules Compliance](SOFTWARE-RULES-COMPLIANCE.md) - OWASP Top 10 and security audit
-- [Project Status](PROJECT-STATUS.md) - Current status and roadmap
+### Installation
 
----
+```bash
+# Clone repository
+git clone https://github.com/yourusername/netvisor-suite.git
+cd netvisor-suite
 
-## Technology Stack
+# Install dependencies
+npm install
 
-| Component | Technology | Version |
-|-----------|------------|---------|
-| Runtime | Node.js | >= 22.0.0 |
-| Web Framework | Express | 5.2.1 |
-| Database | PostgreSQL | >= 14 |
-| Authentication | JWT + bcrypt | - |
-| Real-time | WebSocket (ws) | 8.21.3 |
-| Frontend | Vanilla JavaScript | - |
+# Configure database (edit .env file)
+DATABASE_URL=postgresql://user:password@localhost:5432/network_db
 
-**Full dependency list:** [package.json](package.json)
+# Setup database schema
+npm run setup
+
+# Start server
+npm start
+```
+
+Access the application at **http://localhost:9090**
 
 ---
 
@@ -156,7 +136,7 @@ ALERT_EMAIL=admin@company.com
 WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 ```
 
-**Complete configuration reference:** [COMPLETE-SETUP-GUIDE.md](COMPLETE-SETUP-GUIDE.md#configuration)
+**Complete configuration reference:** [COMPLETE-SETUP-GUIDE.md](COMPLETE-SETUP-GUIDE.md)
 
 ---
 
@@ -186,8 +166,6 @@ sudo cp deploy/nms.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now nms
 ```
-
-**Detailed deployment guides:** [docs/PRODUCTION-DEPLOYMENT-GUIDE.md](docs/PRODUCTION-DEPLOYMENT-GUIDE.md)
 
 ---
 
@@ -228,10 +206,6 @@ RESTful API with JSON responses. All endpoints under `/api`.
 - GDPR compliance (Privacy Policy included)
 - CCPA compliance (California users)
 
-**Security audit report:** [SOFTWARE-RULES-COMPLIANCE.md](SOFTWARE-RULES-COMPLIANCE.md)
-
-**Report vulnerabilities:** [docs/SECURITY.md](docs/SECURITY.md)
-
 ---
 
 ## Testing
@@ -253,7 +227,7 @@ npm run lint                  # Code quality check
 ## Project Structure
 
 ```
-Network Management Suite/
+netvisor-suite/
 ├── server/                   # Backend application
 │   ├── routes/              # API endpoints
 │   ├── middleware/          # Authentication, security
@@ -268,6 +242,25 @@ Network Management Suite/
 ├── deploy/                   # Deployment configurations
 └── .env                      # Environment configuration
 ```
+
+---
+
+## Documentation
+
+### Getting Started
+- [Complete Setup Guide](COMPLETE-SETUP-GUIDE.md) - Detailed installation and configuration
+- [Changelog](CHANGELOG.md) - Version history and release notes
+- [Latest Changes](LATEST-CHANGES.md) - Recent updates in v3.0.0
+
+### Technical Documentation
+- [API Documentation](openapi.yaml) - OpenAPI 3.0 specification
+- [Security Policy](docs/SECURITY.md) - Security practices and vulnerability reporting
+- [Production Deployment](docs/PRODUCTION-DEPLOYMENT-GUIDE.md) - Cloud and on-premise deployment
+- [Enterprise Features](docs/ENTERPRISE-FEATURES.md) - Monitoring and alerting configuration
+
+### Compliance & Quality
+- [Software Rules Compliance](SOFTWARE-RULES-COMPLIANCE.md) - OWASP Top 10 and security audit
+- [Project Status](PROJECT-STATUS.md) - Current status and roadmap
 
 ---
 

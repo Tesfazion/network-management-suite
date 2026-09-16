@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
-title Network Management Suite - installer
+title NetVisor Suite - installer
 
 echo ==============================================
-echo   Network Management Suite - Windows install
+echo   NetVisor Suite - Windows install
 echo ==============================================
 echo.
 
@@ -31,14 +31,14 @@ if not exist node_modules (
 if "%PORT%"=="" set PORT=8080
 
 echo.
-echo Starting Network Management Suite on port !PORT!...
+echo Starting NetVisor Suite on port !PORT!...
 echo   Local:  http://localhost:!PORT!
 echo   LAN:    http://<this-computer-ip>:!PORT!
 echo.
 echo The first run opens the setup wizard - enter your organization name.
 echo.
 
-start "Network Management Suite" node server/server.js
+start "NetVisor Suite" node server/server.js
 timeout /t 2 /nobreak >nul
 echo Server started in its own window. You can close this one.
 pause >nul

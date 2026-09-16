@@ -1,28 +1,13 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Network Management Suite</title>
-  <script>
-    // Redirect to appropriate page based on authentication
-    const token = localStorage.getItem('token');
-    if (token) {
-      window.location.href = '/dashboard.html';
-    } else {
-      window.location.href = '/auth.html';
-    }
-  </script>
+  <title>NetVisor Suite</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Ccircle cx='7' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='17' cy='7' r='2.6' fill='white'/%3E%3Ccircle cx='12' cy='17' r='2.6' fill='white'/%3E%3Cpath d='M8.6 8.6 10.8 14.6M15.4 8.6l-2.2 6M9.4 7h5.4' stroke='white' stroke-width='1.4' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <div style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #0a0e1a; color: #f8fafc; font-family: sans-serif;">
-    <div style="text-align: center;">
-      <div style="font-size: 2rem; margin-bottom: 1rem;">Loading...</div>
-      <div style="color: #94a3b8;">Redirecting to dashboard</div>
-    </div>
-  </div>
-</body>
-</html>
   <div class="app">
     <aside class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="brand">
@@ -37,42 +22,43 @@
 
       <nav id="nav" aria-label="Views">
         <button class="nav-item active" data-tab="dashboard" aria-current="page">
-          <span class="nav-ico" aria-hidden="true">▦</span> Dashboard
+          <span class="nav-ico" aria-hidden="true">🏠</span> Dashboard
         </button>
         <button class="nav-item" data-tab="infrastructure">
-          <span class="nav-ico" aria-hidden="true">⌁</span> Infrastructure
+          <span class="nav-ico" aria-hidden="true">🏗️</span> Infrastructure
         </button>
         <button class="nav-item" data-tab="ipvlan">
-          <span class="nav-ico" aria-hidden="true">≋</span> IP &amp; VLAN
+          <span class="nav-ico" aria-hidden="true">🌐</span> IP &amp; VLAN
         </button>
         <button class="nav-item" data-tab="monitoring">
-          <span class="nav-ico" aria-hidden="true">●</span> Monitoring
+          <span class="nav-ico" aria-hidden="true">📡</span> Monitoring
         </button>
         <button class="nav-item" data-tab="diagram">
-          <span class="nav-ico" aria-hidden="true">🗀</span> Diagram
+          <span class="nav-ico" aria-hidden="true">🗺️</span> Diagram
         </button>
         <button class="nav-item" data-tab="incidents">
-          <span class="nav-ico" aria-hidden="true">⚠</span> Incidents
+          <span class="nav-ico" aria-hidden="true">⚠️</span> Incidents
           <span class="nav-badge" id="openIssueBadge" hidden aria-live="polite"></span>
         </button>
       </nav>
 
       <div class="sidebar-foot" title="Organization settings">
-        <span class="org-name" id="orgName" role="button" tabindex="0" aria-label="Organization settings">Network Management Suite</span>
-        <span class="muted">v2.1.0 · PostgreSQL</span>
+        <span class="org-name" id="orgName" role="button" tabindex="0" aria-label="Organization settings">NetVisor Suite</span>
+        <span class="muted">v1.2 · PostgreSQL</span>
       </div>
     </aside>
 
     <div class="main">
       <header class="topbar" role="banner">
         <div class="search-wrap">
-          <span class="search-ico" aria-hidden="true">⌕</span>
+          <span class="search-ico" aria-hidden="true">🔍</span>
           <label for="searchInput" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Search devices, cables, IP addresses, incidents…</label>
           <input id="searchInput" type="text" placeholder="Search devices, cables, IP addresses, incidents…" autocomplete="off" aria-label="Search across all entities">
-          <kbd aria-hidden="true">↵</kbd>
+          <kbd aria-hidden="true">⌘K</kbd>
           <div id="searchResults" class="search-results" hidden role="listbox" aria-label="Search results"></div>
         </div>
         <div class="top-actions">
+          <button class="btn ghost" id="btnTemplates" aria-label="Data and templates">Data &amp; Templates</button>
           <button class="btn ghost" data-export="cables" aria-label="Export cable log as CSV">Cable log CSV</button>
           <button class="btn ghost" data-export="devices" aria-label="Export device inventory as CSV">Devices CSV</button>
         </div>
@@ -80,57 +66,44 @@
 
       <main id="content">
         <section id="dashboard" class="view active" aria-labelledby="dashboard-heading">
-          <div class="dash-hero">
-            <div class="dash-hero-copy">
-              <h2 id="dashboard-heading">Network Overview</h2>
-              <p class="dash-sub">Infrastructure health, availability, and active issues at a glance.</p>
+          <div class="view-head">
+            <div>
+              <h2 id="dashboard-heading">Dashboard</h2>
+              <p class="muted" style="margin:4px 0 0">Network overview and health</p>
             </div>
-            <div class="dash-hero-actions">
-              <span class="health-chip health-warn" id="dashHealth" role="status" aria-live="polite"></span>
-              <button class="btn primary" id="dashCheckAll" aria-label="Check all monitored devices now">Run checks</button>
+            <div class="head-actions">
               <span class="muted" id="dashUpdated" aria-live="polite"></span>
+              <button class="btn primary sm" id="dashCheckAll">Run checks</button>
             </div>
           </div>
-          <div id="dashConflicts" aria-live="polite"></div>
-          <div id="dashKpis" class="dash-kpis"></div>
-          <div class="dash-rows">
-            <div class="dash-panel">
-              <div class="block-head"><h3>Network availability</h3></div>
-              <div id="dashDonut" class="dash-donut-wrap"></div>
+          <div id="dashConflicts" aria-live="polite" style="margin-bottom:16px"></div>
+          <div id="dashHealth"></div>
+          <div class="dash-grid" id="dashKpis" style="margin-bottom:18px"></div>
+          <div class="grid two" style="margin-bottom:18px">
+            <div class="dash-section">
+              <div class="block-head"><h3>Availability</h3></div>
+              <div id="dashDonut"></div>
             </div>
-            <div class="dash-panel">
-              <div class="block-head"><h3>Devices by type</h3></div>
+            <div class="dash-section">
+              <div class="block-head"><h3>Device types</h3></div>
               <div id="dashTypes"></div>
             </div>
-            <div class="dash-panel">
-              <div class="block-head"><h3>VLAN utilization</h3></div>
-              <div id="dashVlans"></div>
-            </div>
           </div>
-          <div class="dash-rows lower">
-            <div class="dash-panel">
+          <div class="dash-section" style="margin-bottom:18px">
+            <div class="block-head"><h3>VLAN utilization</h3></div>
+            <div id="dashVlans"></div>
+          </div>
+          <div class="grid two">
+            <div class="dash-section">
+              <div class="block-head"><h3>Reachability</h3></div>
+              <div id="dashUptime"></div>
+            </div>
+            <div class="dash-section">
               <div class="block-head">
                 <h3>Recent incidents</h3>
                 <a class="link" data-goto="incidents" role="link" tabindex="0">View all →</a>
               </div>
               <div id="dashIssues"></div>
-            </div>
-            <div class="dash-panel">
-              <div class="block-head">
-                <h3>Device reachability</h3>
-                <a class="link" data-goto="monitoring" role="link" tabindex="0">Open monitoring →</a>
-              </div>
-              <div id="dashUptime"></div>
-            </div>
-          </div>
-          <div class="dash-rows">
-            <div class="dash-panel full">
-              <div class="block-head">
-                <h3>Live Event Feed</h3>
-                <span class="live-badge">Live</span>
-                <span class="muted" id="monitoringStatus"></span>
-              </div>
-              <div id="eventFeed" class="event-feed"></div>
             </div>
           </div>
         </section>
@@ -199,7 +172,7 @@
                 <button class="btn sm" data-entity="vlans" aria-label="Add VLAN">Add</button>
               </div>
               <div class="scroller">
-                <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th>Devices</th><th></th></tr></thead><tbody id="vlansBody"></tbody></table>
+                <table><thead><tr><th>ID</th><th>Name</th><th>Subnet</th><th>Gateway</th><th>Devices</th></tr></thead><tbody id="vlansBody"></tbody></table>
               </div>
             </div>
             <div class="card-block full">
@@ -222,11 +195,9 @@
               <button class="btn primary" id="checkAll" aria-label="Check all monitored devices">Check all now</button>
             </div>
           </div>
+          <div id="monitorSummary" class="muted" style="margin-bottom:10px"></div>
+          <div id="monitoringStatus" class="muted" style="margin-bottom:10px"></div>
           <div class="card-block full">
-            <div class="block-head">
-              <h3>Device health</h3>
-              <span class="muted" id="monitorSummary" aria-live="polite"></span>
-            </div>
             <div class="scroller">
               <table><thead><tr><th>Name</th><th>IP</th><th>Type</th><th>Status</th><th>RTT</th><th>Last checked</th><th>History</th><th class="col-act"></th></tr></thead><tbody id="monitorBody"></tbody></table>
             </div>
@@ -250,26 +221,56 @@
 
         <section id="diagram" class="view" aria-labelledby="diagram-heading">
           <div class="view-head">
-            <h2 id="diagram-heading">Network Diagram Editor</h2>
+            <div>
+              <h2 id="diagram-heading">Network Diagram</h2>
+              <p class="muted" style="margin:4px 0 0">Design, test, and document your network topology</p>
+            </div>
             <div class="head-actions">
+              <button class="btn ghost sm" id="diagDemoMode" aria-label="Toggle demo mode">Demo</button>
               <button class="btn ghost" id="diagImport" aria-label="Import all devices into diagram">Import inventory</button>
               <button class="btn ghost" id="diagLayout" aria-label="Auto-arrange nodes in a circle">Auto-layout</button>
               <button class="btn primary" id="diagSave" aria-label="Save diagram to server">Save diagram</button>
             </div>
           </div>
           <div class="diagram-toolbar" role="toolbar" aria-label="Diagram tools">
-            <span class="diag-tag">Place:</span>
-            <button class="btn sm diag-add" data-type="router" aria-label="Place router node">Router</button>
-            <button class="btn sm diag-add" data-type="switch" aria-label="Place switch node">Switch</button>
-            <button class="btn sm diag-add" data-type="server" aria-label="Place server node">Server</button>
-            <button class="btn sm diag-add" data-type="pc" aria-label="Place PC node">PC</button>
-            <button class="btn sm diag-add" data-type="printer" aria-label="Place printer node">Printer</button>
-            <button class="btn sm diag-add" data-type="cloud" aria-label="Place internet node">Internet</button>
+            <span class="diag-tag">Mode:</span>
+            <button class="btn sm" id="diagModeEdit" aria-pressed="true">Edit</button>
+            <button class="btn sm" id="diagModeDemo" aria-pressed="false">Demo / Trace</button>
             <span class="diag-sep" aria-hidden="true"></span>
+            <span class="diag-tag">Add:</span>
+            <div class="diag-palette">
+              <span class="pal-cat">Network</span>
+              <button class="btn sm diag-add" data-type="router" aria-label="Place router node">Router</button>
+              <button class="btn sm diag-add" data-type="switch" aria-label="Place switch node">Switch</button>
+              <button class="btn sm diag-add" data-type="hub" aria-label="Place hub node">Hub</button>
+              <button class="btn sm diag-add" data-type="bridge" aria-label="Place bridge node">Bridge</button>
+              <button class="btn sm diag-add" data-type="wireless" aria-label="Place wireless access point">Wireless</button>
+              <button class="btn sm diag-add" data-type="modem" aria-label="Place modem node">Modem</button>
+              <button class="btn sm diag-add" data-type="firewall" aria-label="Place firewall node">Firewall</button>
+              <span class="pal-cat">End devices</span>
+              <button class="btn sm diag-add" data-type="server" aria-label="Place server node">Server</button>
+              <button class="btn sm diag-add" data-type="pc" aria-label="Place PC node">PC</button>
+              <button class="btn sm diag-add" data-type="laptop" aria-label="Place laptop node">Laptop</button>
+              <button class="btn sm diag-add" data-type="printer" aria-label="Place printer node">Printer</button>
+              <button class="btn sm diag-add" data-type="phone" aria-label="Place IP phone node">Phone</button>
+              <button class="btn sm diag-add" data-type="tablet" aria-label="Place tablet node">Tablet</button>
+              <span class="pal-cat">Other</span>
+              <button class="btn sm diag-add" data-type="cloud" aria-label="Place internet cloud">Internet</button>
+            </div>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <span class="diag-tag">Sites:</span>
             <button class="btn sm" id="diagAddZone" aria-label="Add a new site zone">+ Add site</button>
             <button class="btn sm" id="diagZoneRename" disabled aria-label="Rename selected site">Rename site</button>
             <span class="diag-sep" aria-hidden="true"></span>
-            <button class="btn sm" id="diagConnect" aria-label="Connect two nodes">Connect: off</button>
+            <span class="diag-tag">Link:</span>
+            <select id="diagLinkType" class="minisel" title="Connection type used for new links">
+              <option value="copper">Copper</option>
+              <option value="fiber">Fiber</option>
+              <option value="wireless">Wireless</option>
+              <option value="console">Console</option>
+              <option value="serial">Serial</option>
+            </select>
+            <button class="btn sm" id="diagConnect" aria-label="Connect two nodes">Connect</button>
             <button class="btn sm danger" id="diagDelete" aria-label="Delete selected node or site">Delete selected</button>
             <span class="diag-sep" aria-hidden="true"></span>
             <label for="diagDeviceLink" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Attach a node to a device</label>
@@ -278,39 +279,98 @@
             </select>
           </div>
           <div class="diagram-wrap">
-            <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas"></svg>
+            <div class="diag-stage">
+              <svg id="diagCanvas" width="1200" height="680" tabindex="0" role="img" aria-label="Network diagram canvas — click to place nodes, drag to move, double-click to rename, then pick a Link type and click Connect to join two nodes"></svg>
+              <div id="diagHint" class="diag-hint">
+                <b>Tip:</b> pick a device in the palette, then click the canvas to place it. Drag to move, double-click to rename.
+                Add <b>sites</b> (offices/rooms/cities) first to group devices; drag a site's corner to resize it.
+                Choose a <b>Link</b> type, click <b>Connect</b>, then click two nodes to wire them.
+                Use <b>Demo / Trace</b> mode to simulate traffic and test connectivity.
+              </div>
+            </div>
+            <aside id="diagProps" class="diag-props" hidden aria-label="Selected node properties">
+              <h3>Node properties</h3>
+              <label>Type
+                <select id="diagPropType"></select>
+              </label>
+              <label>Name
+                <input id="diagPropLabel" type="text" maxlength="80" placeholder="e.g. CoreSwitch">
+              </label>
+              <label>IP address
+                <input id="diagPropIp" type="text" maxlength="45" placeholder="e.g. 192.168.99.2">
+              </label>
+              <label>MAC address
+                <input id="diagPropMac" type="text" maxlength="20" placeholder="e.g. 00:1A:2B:3C:4D:01">
+              </label>
+              <label>Status
+                <select id="diagPropStatus">
+                  <option value="up">Up</option>
+                  <option value="down">Down</option>
+                  <option value="unknown">Unknown</option>
+                </select>
+              </label>
+              <label>Linked device
+                <select id="diagPropDevice"></select>
+              </label>
+              <label>Site / Building
+                <select id="diagPropZone"></select>
+              </label>
+              <button class="btn danger sm" id="diagPropDelete" aria-label="Delete the selected node">Delete node</button>
+            </aside>
           </div>
           <div class="diagram-legend" aria-label="Diagram legend">
-            <span class="leg leg-up">● UP</span>
-            <span class="leg leg-down">● DOWN</span>
-            <span class="leg leg-unknown">● Unknown/not linked</span>
+            <span class="leg leg-up">🟢 UP</span>
+            <span class="leg leg-down">🔴 DOWN</span>
+            <span class="leg leg-unknown">⚪ Unknown/not linked</span>
             <span class="diag-sep" aria-hidden="true"></span>
-            <span class="leg leg-zone">▭ Site / office zone</span>
+            <span class="leg leg-zone">⬜ Site / Building / City</span>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <span class="lk-leg lk-copper">Copper</span>
+            <span class="lk-leg lk-fiber">Fiber</span>
+            <span class="lk-leg lk-wireless">Wireless</span>
+            <span class="lk-leg lk-console">Console</span>
+            <span class="lk-leg lk-serial">Serial</span>
+            <span class="diag-sep" aria-hidden="true"></span>
+            <span class="lk-leg lk-email">✉ Email / Message</span>
+          </div>
+          <div id="diagDemoPanel" class="diag-demo-panel" hidden aria-label="Demo controls">
+            <div class="diag-demo-row">
+              <span class="diag-tag">Trace from:</span>
+              <select id="diagTraceFrom" class="minisel"><option value="">Select node…</option></select>
+              <span class="diag-tag">to:</span>
+              <select id="diagTraceTo" class="minisel"><option value="">Select node…</option></select>
+              <button class="btn primary sm" id="diagTraceRun">Run trace</button>
+              <button class="btn ghost sm" id="diagTraceClear">Clear</button>
+            </div>
+            <div id="diagTraceOutput" class="diag-trace-output" aria-live="polite"></div>
           </div>
         </section>
       </main>
     </div>
   </div>
 
-  <div id="setupScreen" class="setup" hidden style="display: none !important;">
-    <div class="setup-box">
-      <div class="setup-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/>
-          <path d="M7.5 7.5 10.5 15.8M16.5 7.5l-4.5 8.3M8.5 6h7.2"/>
-        </svg>
+  <div id="dataModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="dataModalTitle">
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="dataModalTitle">Data &amp; Templates</h3><button class="modal-x" id="dataModalClose" aria-label="Close dialog">✕</button></div>
+      <div class="data-modal-body">
+        <div class="field">
+          <label for="dataOrgName">Organization name</label>
+          <input id="dataOrgName" type="text" placeholder="e.g. Wolayita Zone Innovation and Technology Office" autocomplete="organization">
+        </div>
+        <div>
+          <strong>Start with a template</strong>
+          <p class="muted" style="margin:2px 0 10px;">Pick a ready-made network so you don't have to start from scratch — then adjust IPs to match your equipment.</p>
+          <div id="templateList" class="data-rows"></div>
+        </div>
+        <div class="data-row">
+          <div>
+            <strong>Blank workspace</strong>
+            <p class="muted">Start empty and build your cabling, IP plan, and diagram yourself.</p>
+          </div>
+          <button class="btn ghost" id="dataBlank">Reset to blank</button>
+        </div>
+        <p class="muted data-warn">Warning: applying a template or blank reset replaces all current data.</p>
       </div>
-      <h1>Network Management Suite</h1>
-      <p>Configure your network management dashboard to get started.</p>
-      <div class="setup-field">
-        <label for="setupOrg">Organization name</label>
-        <input id="setupOrg" type="text" placeholder="Enter organization name" autocomplete="organization" required>
-      </div>
-      <label class="setup-check">
-        <input type="checkbox" id="setupDemo" checked>
-        <span>Load demonstration data</span>
-      </label>
-      <button class="btn primary setup-btn" id="setupStart">Continue</button>
     </div>
   </div>
 
@@ -323,6 +383,6 @@
 
   <div id="toasts" aria-live="polite" aria-atomic="true"></div>
 
-  <script src="/js/app.js?v=1789001406755"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>

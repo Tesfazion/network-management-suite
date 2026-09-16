@@ -1,5 +1,5 @@
 /**
- * Network Management Suite — client-side application.
+ * NetVisor Suite — client-side application.
  * Single-file vanilla JS SPA with hash-based routing, modal CRUD,
  * live monitoring, search, and an SVG diagram editor.
  */
@@ -306,7 +306,8 @@ function renderKpis(d) {
       cls: c.cablesFailedTest > 0 ? 'bad' : 'good', meter: 0,
     },
   ];
-  $('#dashKpis').replaceChildren(...kpis.map((k) => {
+  const container = $('#dashKpis');
+  container.replaceChildren(...kpis.map((k) => {
     const card = el('div', 'kpi ' + (k.cls || ''));
     const top = el('div', 'kpi-top');
     const meta = el('div');
@@ -316,6 +317,7 @@ function renderKpis(d) {
     card.append(top, hint, meterFill(k.meter, 'kpi-meter'));
     return card;
   }));
+  container.classList.add('loaded');
 }
 
 /**
@@ -1110,8 +1112,40 @@ let diagSelZone = null;            // selected zone/site id
 let diagPlace = null;              // active type to place (or null)
 let diagConnFrom = null;           // connect-mode first node id
 let diagSaveTimer = null;
+let diagDemoMode = false;          // demo / practice mode
 
-const DEFAULT_LABEL = { router: 'Router', switch: 'Switch', server: 'Server', pc: 'PC', printer: 'Printer', cloud: 'Internet' };
+const DEFAULT_LABEL = {
+  router: 'Router', switch: 'Switch', hub: 'Hub', bridge: 'Bridge',
+  wireless: 'Access Point', modem: 'Modem', firewall: 'Firewall',
+  server: 'Server', pc: 'PC', laptop: 'Laptop', printer: 'Printer',
+  phone: 'Phone', tablet: 'Tablet', cloud: 'Internet',
+};
+const LINK_TYPES = new Set(['copper', 'fiber', 'wireless', 'console', 'serial']);
+
+/** Map inventory device_type -> diagram node type. */
+const DEV_TYPE_TO_NODE = {
+  router: 'router', switch: 'switch', server: 'server', hub: 'hub', firewall: 'firewall',
+  workstation: 'pc', pc: 'pc', laptop: 'laptop', phone: 'phone',
+  printer: 'printer', accesspoint: 'wireless', ap: 'wireless', modem: 'modem',
+};
+
+/** Connection type selected for the next link (defaults to copper). */
+function currentLinkType() {
+  const s = $('#diagLinkType');
+  return s && LINK_TYPES.has(s.value) ? s.value : 'copper';
+}
+
+/** Toggle demo mode on/off. */
+function setDemoMode(on) {
+  diagDemoMode = on;
+  const editBtn = $('#diagModeEdit');
+  const demoBtn = $('#diagModeDemo');
+  const panel = $('#diagDemoPanel');
+  if (editBtn) editBtn.setAttribute('aria-pressed', String(!on));
+  if (demoBtn) demoBtn.setAttribute('aria-pressed', String(on));
+  if (panel) panel.hidden = !on;
+  if (!on) clearTrace();
+}
 
 /**
  * Load diagram data, device inventory, and monitoring status.
@@ -1133,10 +1167,82 @@ async function loadDiagram() {
   sel.append(new Option('Attach to device…', ''));
   devices.forEach((d) => sel.append(new Option(`${d.name}${d.ip ? ' (' + d.ip + ')' : ''}`, d.id)));
 
+  const traceFrom = $('#diagTraceFrom');
+  const traceTo = $('#diagTraceTo');
+  if (traceFrom) { traceFrom.replaceChildren(new Option('Select node…', '')); diag.nodes.forEach((n) => traceFrom.append(new Option(n.label || n.id, n.id))); }
+  if (traceTo) { traceTo.replaceChildren(new Option('Select node…', '')); diag.nodes.forEach((n) => traceTo.append(new Option(n.label || n.id, n.id))); }
+
+  populateDiagPropControls();
   renderDiagram();
 }
 
-/** Generate a unique node identifier. */
+/** Clear trace output and reset demo state. */
+function clearTrace() {
+  const out = $('#diagTraceOutput');
+  if (out) out.replaceChildren();
+  const from = $('#diagTraceFrom');
+  const to = $('#diagTraceTo');
+  if (from) from.value = '';
+  if (to) to.value = '';
+}
+
+/** Run a simulated trace / ping between two diagram nodes. */
+async function runTrace() {
+  const fromId = $('#diagTraceFrom')?.value;
+  const toId = $('#diagTraceTo')?.value;
+  const out = $('#diagTraceOutput');
+  if (!out) return;
+  if (!fromId || !toId) { out.replaceChildren(el('div', 'diag-trace-line trace-fail', 'Select source and destination nodes.')); return; }
+  if (fromId === toId) { out.replaceChildren(el('div', 'diag-trace-line trace-fail', 'Source and destination are the same.')); return; }
+  const fromNode = nodeById(fromId);
+  const toNode = nodeById(toId);
+  if (!fromNode || !toNode) { out.replaceChildren(el('div', 'diag-trace-line trace-fail', 'One of the selected nodes was not found.')); return; }
+
+  out.replaceChildren();
+  const add = (text, cls = 'trace-info') => { const d = el('div', 'diag-trace-line ' + cls, text); out.append(d); };
+  add(`Trace from ${fromNode.label || fromId} → ${toNode.label || toId}`);
+  add('Resolving route...');
+
+  await sleep(350);
+  const path = findPath(fromId, toId);
+  if (!path) { add('Destination unreachable from current topology.', 'trace-fail'); return; }
+  add(`Path found (${path.length} hops): ${path.map((id) => (nodeById(id)?.label || id)).join(' → ')}`, 'trace-ok');
+  for (const hopId of path) {
+    const n = nodeById(hopId);
+    const st = statusFor(n);
+    await sleep(220);
+    add(`[${st.toUpperCase()}] ${n?.label || hopId}${n?.ip ? ' (' + n.ip + ')' : ''}`, st === 'up' ? 'trace-ok' : 'trace-fail');
+  }
+  add('Trace complete.', 'trace-ok');
+}
+
+/** Breadth-first search for a path between two node ids. */
+function findPath(fromId, toId) {
+  const adj = new Map();
+  diag.links.forEach((l) => {
+    const a = l.from, b = l.to;
+    if (!adj.has(a)) adj.set(a, []);
+    if (!adj.has(b)) adj.set(b, []);
+    adj.get(a).push(b);
+    adj.get(b).push(a);
+  });
+  const queue = [[fromId]];
+  const visited = new Set([fromId]);
+  while (queue.length) {
+    const path = queue.shift();
+    const last = path[path.length - 1];
+    if (last === toId) return path;
+    for (const next of (adj.get(last) || [])) {
+      if (visited.has(next)) continue;
+      visited.add(next);
+      queue.push([...path, next]);
+    }
+  }
+  return null;
+}
+
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
 function uid() { return 'n' + Math.random().toString(36).slice(2, 9); }
 
 /** Find a node by its id. */
@@ -1179,17 +1285,31 @@ function renderDiagram() {
   svg.replaceChildren(diagDefs(), diagBgRect());
   diag.zones.forEach((z) => svg.appendChild(zoneGroup(z)));
   diag.links.forEach((l) => {
-    const a = nodeById(l.from); const b = nodeById(l.to);
-    if (!a || !b) return;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-    line.classList.add('diag-link');
-    svg.appendChild(line);
+    const line = diagLinkEl(l);
+    if (line) svg.appendChild(line);
   });
   diag.nodes.forEach((n) => svg.appendChild(nodeGroup(n)));
   const rename = $('#diagZoneRename');
   if (rename) rename.disabled = !diagSelZone;
+  renderNodeProps();
+}
+
+/** Build an SVG line element for a link, styled by its connection type. */
+function diagLinkEl(l) {
+  const a = nodeById(l.from);
+  const b = nodeById(l.to);
+  if (!a || !b) return null;
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+  line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+  const type = LINK_TYPES.has(l.type) ? l.type : 'copper';
+  line.classList.add('diag-link', 'lk-' + type);
+  if (l.label) {
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = l.label + ' — ' + type;
+    line.appendChild(title);
+  }
+  return line;
 }
 
 function diagDefs() {
@@ -1214,7 +1334,12 @@ function diagBgRect() {
   return rect;
 }
 
-const ZONE_COUNTS = { router: 'Router', switch: 'Switch', server: 'Server', pc: 'PC', printer: 'Printer', cloud: 'Internet' };
+const ZONE_COUNTS = {
+  router: 'Router', switch: 'Switch', hub: 'Hub', bridge: 'Bridge',
+  wireless: 'Access Point', modem: 'Modem', firewall: 'Firewall',
+  server: 'Server', pc: 'PC', laptop: 'Laptop', printer: 'Printer',
+  phone: 'Phone', tablet: 'Tablet', cloud: 'Internet',
+};
 
 /**
  * Build a human-readable count string for a zone, e.g. "2 Routers · 1 Server".
@@ -1233,8 +1358,8 @@ function zoneCountText(z) {
 }
 
 /**
- * Build the SVG group for a zone (site/office rectangle).
- * @param {{id: string, label: string, x: number, y: number, w: number, h: number}} z
+ * Build the SVG group for a zone (site/office/city rectangle).
+ * @param {{id: string, label: string, x: number, y: number, w: number, h: number, city: string, building: string}} z
  * @returns {SVGGElement}
  */
 function zoneGroup(z) {
@@ -1253,6 +1378,18 @@ function zoneGroup(z) {
   const title = mk('text', { x: z.x + 14, y: z.y + 24, 'text-anchor': 'start' }, 'zone-title');
   title.textContent = z.label || 'Site';
   g.appendChild(title);
+
+  const locationText = [z.building, z.city].filter(Boolean).join(' · ') || '';
+  if (locationText) {
+    const loc = mk('text', { x: z.x + 14, y: z.y + 40, 'text-anchor': 'start' }, 'zone-sub');
+    loc.textContent = locationText;
+    loc.setAttribute('fill', 'var(--muted)');
+    loc.setAttribute('font-size', '10.5px');
+    loc.setAttribute('font-weight', '600');
+    loc.setAttribute('user-select', 'none');
+    loc.setAttribute('pointer-events', 'none');
+    g.appendChild(loc);
+  }
 
   const count = mk('text', { x: z.x + 14, y: z.y + z.h - 14, 'text-anchor': 'start' }, 'zone-count');
   count.textContent = zoneCountText(z) || '';
@@ -1327,7 +1464,7 @@ function startZoneResize(z) {
 }
 
 function addZone() {
-  const z = { id: 'z' + uid(), label: 'New site', x: 70, y: 70, w: 320, h: 180, room_id: null };
+  const z = { id: 'z' + uid(), label: 'New site', x: 70, y: 70, w: 320, h: 180, room_id: null, city: '', building: '' };
   diag.zones.push(z);
   selectZone(z.id);
   renderDiagram();
@@ -1337,14 +1474,19 @@ function addZone() {
 
 /**
  * Prompt the user to rename a zone label.
- * @param {{id: string, label: string}} z
+ * @param {{id: string, label: string, city: string, building: string}} z
  */
 function renameZone(z) {
   if (!z) return;
-  const name = prompt('Site / office name (e.g. Admin Office):', z.label || '');
+  const name = prompt('Site / office / city name:', z.label || '');
   if (name && name.trim()) {
     z.label = name.trim();
+    const city = prompt('City / region (optional):', z.city || '');
+    if (city !== null) z.city = city.trim();
+    const building = prompt('Building / floor (optional):', z.building || '');
+    if (building !== null) z.building = building.trim();
     renderDiagram();
+    populateDiagPropControls();
     touchDiagram();
   }
 }
@@ -1355,44 +1497,75 @@ function renameZone(z) {
  * @returns {SVGGElement}
  */
 function nodeGroup(n) {
-  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const g = document.createElementNS(svgNS, 'g');
   g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
   g.setAttribute('data-id', n.id);
   g.classList.add('diag-node');
   if (n.id === diagSel) g.classList.add('sel');
 
-  const shape = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  const shape = document.createElementNS(svgNS, 'g');
   shape.classList.add('shape', 't-' + n.type);
-  const st = diagStatus[n.device_id];
-  if (st) shape.classList.add('st-' + st);
-  else shape.classList.add('st-unknown');
+  const st = statusFor(n);
+  shape.classList.add('st-' + st);
   drawShape(shape, n.type);
   g.appendChild(shape);
 
-  const hit = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  const led = document.createElementNS(svgNS, 'circle');
+  led.setAttribute('cx', '22'); led.setAttribute('cy', '-20'); led.setAttribute('r', '4');
+  led.setAttribute('stroke', 'var(--bg)'); led.setAttribute('stroke-width', '1.5');
+  led.classList.add('led', 'led-' + st);
+  led.appendChild(ledTitle(st));
+  g.appendChild(led);
+
+  const hit = document.createElementNS(svgNS, 'rect');
   hit.setAttribute('x', '-30'); hit.setAttribute('y', '-26'); hit.setAttribute('width', '60'); hit.setAttribute('height', '52');
   hit.classList.add('diag-hit');
   g.appendChild(hit);
 
-  const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  const label = document.createElementNS(svgNS, 'text');
   label.setAttribute('y', '40'); label.setAttribute('text-anchor', 'middle');
   label.classList.add('diag-label');
   label.textContent = n.label || '';
   g.appendChild(label);
 
-  if (n.device_id != null) {
-    const dev = (window.__devicesCache || []).find((d) => d.id === n.device_id);
-    if (dev && dev.ip) {
-      const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      sub.setAttribute('y', '55'); sub.setAttribute('text-anchor', 'middle');
-      sub.classList.add('diag-sub');
-      sub.textContent = dev.ip;
-      g.appendChild(sub);
-    }
+  const dev = n.device_id != null ? ((window.__devicesCache || []).find((d) => d.id === n.device_id)) : null;
+  const ip = n.ip || (dev && dev.ip) || '';
+  if (ip) {
+    const sub = document.createElementNS(svgNS, 'text');
+    sub.setAttribute('y', '55'); sub.setAttribute('text-anchor', 'middle');
+    sub.classList.add('diag-sub');
+    sub.textContent = ip;
+    g.appendChild(sub);
   }
 
   g.addEventListener('pointerdown', (e) => { e.stopPropagation(); pickNode(n, e); });
+  g.addEventListener('dblclick', (e) => { e.stopPropagation(); renameNode(n); });
   return g;
+}
+
+/** Effective status for a node: live device status wins, else its stored status. */
+function statusFor(n) {
+  if (n && n.device_id != null && diagStatus[n.device_id]) return diagStatus[n.device_id];
+  return (n && n.status) || 'unknown';
+}
+
+/** Add a tooltip caption to the status LED. */
+function ledTitle(st) {
+  const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+  t.textContent = (st === 'up' ? 'Online' : st === 'down' ? 'Offline' : 'Status unknown');
+  return t;
+}
+
+/** Rename a node via a prompt (Packet-Tracer style double-click rename). */
+function renameNode(n) {
+  if (!n) return;
+  const name = prompt('Node name:', n.label || '');
+  if (name && name.trim()) {
+    n.label = name.trim();
+    renderDiagram();
+    touchDiagram();
+  }
 }
 
 /**
@@ -1428,6 +1601,44 @@ function drawShape(shape, type) {
     mk('rect', { x: -16, y: -13, width: 32, height: 23, rx: 2 });
     mk('rect', { x: -11, y: 12, width: 22, height: 5, rx: 1 });
     mk('rect', { x: -6, y: 17, width: 12, height: 5, rx: 1 });
+  } else if (type === 'laptop') {
+    mk('rect', { x: -17, y: -12, width: 34, height: 21, rx: 2 });
+    mk('path', { d: 'M-12 12 h24 l3 4 h-30 z' });
+  } else if (type === 'phone') {
+    mk('rect', { x: -8, y: -18, width: 16, height: 32, rx: 3 });
+    mk('line', { x1: -4, y1: 10, x2: 4, y2: 10 });
+  } else if (type === 'tablet') {
+    mk('rect', { x: -11, y: -15, width: 22, height: 29, rx: 3 });
+    mk('line', { x1: -5, y1: 11, x2: 5, y2: 11 });
+  } else if (type === 'firewall') {
+    mk('rect', { x: -18, y: -14, width: 36, height: 28, rx: 2 });
+    mk('line', { x1: -18, y1: -3, x2: 18, y2: -3 });
+    mk('line', { x1: -18, y1: 9, x2: 18, y2: 9 });
+    mk('line', { x1: -6, y1: -14, x2: -6, y2: -3 });
+    mk('line', { x1: 6, y1: -3, x2: 6, y2: 9 });
+  } else if (type === 'hub') {
+    mk('rect', { x: -14, y: -9, width: 28, height: 18, rx: 3 });
+    mk('circle', { cx: -8, cy: 0, r: 1.8 });
+    mk('circle', { cx: -2.5, cy: 0, r: 1.8 });
+    mk('circle', { cx: 2.5, cy: 0, r: 1.8 });
+    mk('circle', { cx: 8, cy: 0, r: 1.8 });
+  } else if (type === 'bridge') {
+    mk('rect', { x: -14, y: -8, width: 28, height: 16, rx: 2 });
+    mk('line', { x1: 0, y1: -8, x2: 0, y2: 8 });
+    mk('circle', { cx: -8, cy: 0, r: 1.6 });
+    mk('circle', { cx: 8, cy: 0, r: 1.6 });
+  } else if (type === 'wireless') {
+    mk('path', { d: 'M-15 0 A 14 14 0 0 1 15 0' });
+    mk('path', { d: 'M-10 -5 A 9 9 0 0 1 10 -5' });
+    mk('path', { d: 'M-5 -9 A 4 4 0 0 1 5 -9' });
+    mk('line', { x1: 0, y1: 0, x2: 0, y2: 6 });
+  } else if (type === 'modem') {
+    mk('rect', { x: -18, y: -10, width: 36, height: 20, rx: 2 });
+    mk('circle', { cx: -12, cy: 0, r: 3 });
+    mk('circle', { cx: -4, cy: 0, r: 3 });
+    mk('line', { x1: 5, y1: -6, x2: 14, y2: -6 });
+    mk('line', { x1: 5, y1: 0, x2: 14, y2: 0 });
+    mk('line', { x1: 5, y1: 6, x2: 14, y2: 6 });
   } else if (type === 'printer') {
     mk('rect', { x: -17, y: -13, width: 34, height: 20, rx: 2 });
     mk('rect', { x: -13, y: 8, width: 26, height: 5, rx: 1 });
@@ -1441,21 +1652,40 @@ function drawShape(shape, type) {
 }
 
 function pickNode(n, e) {
+  if (diagDemoMode) {
+    toast('Switch to Edit mode to modify the diagram', 'warn');
+    return;
+  }
   if (diagConnFrom) {
     if (diagConnFrom !== n.id) {
       const dup = diag.links.some((l) =>
         (l.from === diagConnFrom && l.to === n.id) || (l.from === n.id && l.to === diagConnFrom));
-      if (!dup) { diag.links.push({ from: diagConnFrom, to: n.id }); touchDiagram(); toast('Connected'); }
+      const ltype = currentLinkType();
+      if (!dup) { diag.links.push({ from: diagConnFrom, to: n.id, type: ltype }); touchDiagram(); toast('Connected (' + ltype + ')'); }
     }
-    diagConnFrom = null;
-    $('#diagConnect').textContent = 'Connect: off';
-    $('#diagConnect').classList.remove('active');
+    resetConnectMode();
     renderDiagram();
     return;
   }
   selectNode(n.id);
   renderDiagram();
   startDrag(n, e);
+}
+
+/** Toggle the connect-mode button label/state. */
+function setConnectMode(active) {
+  const btn = $('#diagConnect');
+  if (!btn) return;
+  btn.classList.toggle('active', active);
+  btn.textContent = active ? 'Connect: click 1st node' : 'Connect';
+}
+
+/** Leave connect/place modes and clear their active styling. */
+function resetConnectMode() {
+  diagConnFrom = null;
+  diagPlace = null;
+  document.querySelectorAll('.diag-add').forEach((b) => b.classList.remove('active'));
+  setConnectMode(false);
 }
 
 function startDrag(n, e) {
@@ -1484,14 +1714,16 @@ $('#diagCanvas').addEventListener('pointerdown', (e) => {
   const rect = $('#diagCanvas').getBoundingClientRect();
   const x = Math.round((e.clientX - rect.left) * (DIAG_W / rect.width));
   const y = Math.round((e.clientY - rect.top) * (DIAG_H / rect.height));
+  if (diagDemoMode) {
+    toast('Switch to Edit mode to modify the diagram', 'warn');
+    return;
+  }
   if (diagPlace && x > 0 && y > 0) {
     placeNode(diagPlace, x, y);
     return;
   }
   if (diagConnFrom) {
-    diagConnFrom = null;
-    $('#diagConnect').textContent = 'Connect: off';
-    $('#diagConnect').classList.remove('active');
+    resetConnectMode();
     renderDiagram();
     return;
   }
@@ -1518,9 +1750,7 @@ $('#diagConnect').addEventListener('click', () => {
   diagConnFrom = null;
   diagPlace = null;
   document.querySelectorAll('.diag-add').forEach((b) => b.classList.remove('active'));
-  const active = !$('#diagConnect').classList.contains('active');
-  $('#diagConnect').classList.toggle('active', active);
-  $('#diagConnect').textContent = active ? 'Connect: click 1st node' : 'Connect: off';
+  setConnectMode(!$('#diagConnect').classList.contains('active'));
 });
 
 $('#diagDelete').addEventListener('click', () => {
@@ -1569,8 +1799,7 @@ $('#diagDeviceLink').addEventListener('change', (e) => {
   if (!dev) return;
   n.device_id = dev.id;
   n.label = dev.name;
-  const t = { router: 'router', switch: 'switch', server: 'server', workstation: 'pc', printer: 'printer' };
-  if (t[dev.device_type]) n.type = t[dev.device_type];
+  if (DEV_TYPE_TO_NODE[dev.device_type]) n.type = DEV_TYPE_TO_NODE[dev.device_type];
   renderDiagram();
   touchDiagram();
   toast('Linked to ' + dev.name + (diagStatus[dev.id] ? ' (' + diagStatus[dev.id].toUpperCase() + ')' : ''));
@@ -1579,15 +1808,15 @@ $('#diagDeviceLink').addEventListener('change', (e) => {
 $('#diagImport').addEventListener('click', async () => {
   const devices = await api('/api/v1/devices');
   if (!devices.length) return toast('No devices in the inventory', 'warn');
-  const t = { router: 'router', switch: 'switch', server: 'server', workstation: 'pc', printer: 'printer' };
   diag.nodes = devices.map((d, i) => {
     const col = i % 4, row = Math.floor(i / 4);
     return {
       id: 'n' + d.id,
-      type: t[d.device_type] || 'pc',
+      type: DEV_TYPE_TO_NODE[d.device_type] || 'pc',
       label: d.name,
       x: 120 + col * 250, y: 90 + row * 130,
       device_id: d.id,
+      status: 'unknown',
     };
   });
   diag.links = [];
@@ -1628,100 +1857,208 @@ $('#diagSave').addEventListener('click', async () => {
   } catch (e) { toast(e.message, 'err'); }
 });
 
-// ---------- Organization / setup ----------
-let setupMode = 'welcome';   // 'welcome' | 'settings'
-let orgSettings = { org_name: 'Network Management Suite' };
+$('#diagModeEdit').addEventListener('click', () => setDemoMode(false));
+$('#diagModeDemo').addEventListener('click', () => setDemoMode(true));
+$('#diagTraceRun').addEventListener('click', runTrace);
+$('#diagTraceClear').addEventListener('click', clearTrace);
+
+// ---------- Node properties panel (Packet-Tracer style config) ----------
+
+/** Populate the type + device dropdowns of the properties panel. */
+function populateDiagPropControls() {
+  const typeSel = $('#diagPropType');
+  if (typeSel && !typeSel.options.length) {
+    Object.keys(DEFAULT_LABEL).forEach((t) => typeSel.append(new Option(DEFAULT_LABEL[t], t)));
+  }
+  const devSel = $('#diagPropDevice');
+  if (devSel && !devSel.options.length) {
+    devSel.append(new Option('— none (draw-only) —', ''));
+    (window.__devicesCache || []).forEach((d) => devSel.append(new Option(d.name, d.id)));
+  }
+  const zoneSel = $('#diagPropZone');
+  if (zoneSel) {
+    zoneSel.replaceChildren();
+    zoneSel.append(new Option('— none —', ''));
+    (diag.zones || []).forEach((z) => zoneSel.append(new Option(z.label || 'Site', z.id)));
+  }
+}
+
+/** Reflect the currently selected node into the properties panel. */
+function renderNodeProps() {
+  const panel = $('#diagProps');
+  if (!panel) { if (diagSel) diagSel = null; return; }
+  const n = nodeById(diagSel);
+  if (!n) { panel.hidden = true; return; }
+  panel.hidden = false;
+  $('#diagPropType').value = n.type;
+  $('#diagPropLabel').value = n.label || '';
+  $('#diagPropIp').value = n.ip || '';
+  $('#diagPropMac').value = n.mac || '';
+  $('#diagPropStatus').value = n.status || 'unknown';
+  $('#diagPropDevice').value = n.device_id != null ? String(n.device_id) : '';
+  const zoneSel = $('#diagPropZone');
+  if (zoneSel) {
+    zoneSel.replaceChildren();
+    zoneSel.append(new Option('— none —', ''));
+    (diag.zones || []).forEach((z) => zoneSel.append(new Option(z.label || 'Site', z.id)));
+    zoneSel.value = n.zone || '';
+  }
+}
+
+/** Push edited property values back into the node and persist (no re-render). */
+function syncNodeFromProps() {
+  const n = nodeById(diagSel);
+  if (!n) return;
+  const typeSel = $('#diagPropType');
+  const stSel = $('#diagPropStatus');
+  const devSel = $('#diagPropDevice');
+  if (typeSel && DEFAULT_LABEL[typeSel.value]) n.type = typeSel.value;
+  n.label = ($('#diagPropLabel').value || '').trim();
+  n.ip = ($('#diagPropIp').value || '').trim();
+  n.mac = ($('#diagPropMac').value || '').trim();
+  if (stSel && ['up', 'down', 'unknown'].includes(stSel.value)) n.status = stSel.value;
+  if (devSel) n.device_id = devSel.value ? Number(devSel.value) : null;
+  const zoneSel = $('#diagPropZone');
+  if (zoneSel) n.zone = zoneSel.value || null;
+  touchDiagram();
+}
+
+/** Apply property changes and redraw the canvas (used on commit/blur). */
+function commitNodeProps() {
+  syncNodeFromProps();
+  renderDiagram();
+}
+
+['#diagPropType', '#diagPropStatus', '#diagPropDevice'].forEach((sel) => $(sel).addEventListener('change', commitNodeProps));
+['#diagPropLabel', '#diagPropIp', '#diagPropMac'].forEach((sel) => $(sel).addEventListener('input', syncNodeFromProps));
+['#diagPropLabel', '#diagPropIp', '#diagPropMac'].forEach((sel) => $(sel).addEventListener('change', commitNodeProps));
+$('#diagPropDelete').addEventListener('click', () => { $('#diagDelete').click(); });
+
+// ---------- Organization ----------
+let orgSettings = { org_name: 'NetVisor Suite' };
 
 /**
  * Apply the organization name to the sidebar and browser title.
  * @param {string} name
  */
 function applyOrgBranding(name) {
-  const org = name || 'Network Management Suite';
+  const org = name || 'NetVisor Suite';
   $('#orgName').textContent = org;
-  document.title = org + ' — Network Management Suite';
+  document.title = org + ' — NetVisor Suite';
 }
 
-/**
- * Show or hide the first-run setup overlay.
- * @param {'welcome'|'settings'} mode
- */
-function showSetup(mode) {
-  setupMode = mode;
-  const welcome = mode === 'welcome';
-  $('#setupDemo').closest('.setup-check').style.display = welcome ? '' : 'none';
-  document.querySelector('.setup-box h1').textContent = welcome
-    ? 'Network Management Suite'
-    : 'Organization Settings';
-  document.querySelector('.setup-box > p').textContent = welcome
-    ? 'Configure your network management dashboard to get started.'
-    : 'Update your organization name and settings.';
-  $('#setupStart').textContent = welcome ? 'Continue' : 'Save';
-  $('#setupOrg').value = welcome ? '' : (orgSettings.org_name || '');
-  $('#setupScreen').hidden = false;
-  $('#setupOrg').focus();
+// ---------- Data & Templates ----------
+
+function openDataModal() {
+  $('#dataOrgName').value = orgSettings.org_name || '';
+  $('#dataModal').classList.add('show');
+  setTimeout(() => $('#dataOrgName').focus(), 60);
+  renderTemplates();
 }
 
-/**
- * Submit the setup form (org name + optional demo data).
- */
-async function saveSetup() {
+function closeDataModal() {
+  $('#dataModal').classList.remove('show');
+}
+
+let templateCache = [];
+
+async function renderTemplates() {
+  const list = $('#templateList');
   try {
-    const orgInput = $('#setupOrg');
-    const org = orgInput.value.trim();
-    
-    // Validation
-    if (!org) {
-      toast('Please enter an organization name', 'warn');
-      orgInput.focus();
-      return;
-    }
-    
-    const demo = setupMode === 'welcome' && $('#setupDemo').checked;
-    const btn = $('#setupStart');
-    
-    // Disable button and show loading state
-    btn.disabled = true;
-    btn.textContent = demo ? 'Loading...' : 'Saving...';
-    
-    await api('/api/v1/setup', { 
-      method: 'POST', 
-      body: JSON.stringify({ org_name: org, demo }) 
+    const setup = await api('/api/v1/setup?t=' + Date.now());
+    templateCache = setup.templates || [];
+  } catch {
+    templateCache = [];
+  }
+  if (!templateCache.length) {
+    list.innerHTML = '<p class="muted">No templates are available.</p>';
+    return;
+  }
+  list.innerHTML = templateCache.map((t, i) => `
+    <div class="data-row">
+      <div>
+        <strong>${i + 1}. ${t.name}</strong>
+        <p class="muted">${t.tagline}</p>
+        <p class="muted" style="margin-top:4px;font-size:11.5px;">${t.rooms} rooms · ${t.outlets} outlets · ${t.vlans} VLANs · ${t.devices} devices</p>
+      </div>
+      <button class="btn primary" data-template="${t.id}" type="button">Load</button>
+    </div>`).join('');
+}
+
+async function saveOrgName() {
+  const org = $('#dataOrgName').value.trim();
+  if (!org) return toast('Please enter an organization name', 'warn');
+  try {
+    await api('/api/v1/setup', {
+      method: 'POST',
+      body: JSON.stringify({ org_name: org })
     });
-    
-    // Update UI
-    applyOrgBranding(org);
     orgSettings.org_name = org;
-    $('#setupScreen').hidden = true;
-    
-    toast(demo ? 'Configuration complete' : 'Settings saved', 'ok');
-    
-    // Load data and navigate
-    await warmCaches();
-    goTab(currentTab);
-    
+    applyOrgBranding(org);
+    toast('Organization name saved', 'ok');
   } catch (e) {
-    console.error('Setup error:', e);
-    toast('Setup failed: ' + (e.message || 'Unknown error'), 'err');
-  } finally {
-    const btn = $('#setupStart');
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = setupMode === 'welcome' ? 'Continue' : 'Save';
-    }
+    toast(e.message, 'err');
   }
 }
 
-$('#setupStart').addEventListener('click', saveSetup);
-$('#setupScreen').addEventListener('click', (e) => { if (e.target === $('#setupScreen')) $('#setupStart').focus(); });
-$('#setupOrg').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSetup(); });
-$('.sidebar-foot').addEventListener('click', () => showSetup('settings'));
+async function applyTemplate(templateKey) {
+  const tpl = templateCache.find((t) => t.id === templateKey);
+  const label = tpl ? tpl.name : 'this template';
+  const okay = confirm('This replaces all current data with the "' + label + '" template. Continue?');
+  if (!okay) return;
+  const btn = document.querySelector(`[data-template="${templateKey}"]`);
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+    await api('/api/v1/setup', {
+      method: 'POST',
+      body: JSON.stringify({ org_name: orgSettings.org_name || '', template: templateKey })
+    });
+    await warmCaches();
+    goTab(currentTab);
+    toast('"' + label + '" template loaded', 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Load'; }
+  }
+}
+
+async function resetBlank() {
+  const okay = confirm('This clears all current data for a blank workspace. Continue?');
+  if (!okay) return;
+  const btn = $('#dataBlank');
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Resetting...';
+    await api('/api/v1/setup', {
+      method: 'POST',
+      body: JSON.stringify({ org_name: orgSettings.org_name || '', clear: true })
+    });
+    await warmCaches();
+    goTab(currentTab);
+    toast('Blank workspace ready', 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Reset to blank';
+  }
+}
+
+$('#btnTemplates').addEventListener('click', openDataModal);
+$('#dataModalClose').addEventListener('click', closeDataModal);
+$('#dataModal').addEventListener('click', (e) => { if (e.target === $('#dataModal')) closeDataModal(); });
+$('#dataModal').addEventListener('click', (e) => {
+  const loadBtn = e.target.closest('[data-template]');
+  if (loadBtn) applyTemplate(loadBtn.dataset.template);
+});
+$('#dataOrgName').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveOrgName(); });
+$('#dataBlank').addEventListener('click', resetBlank);
 
 // ---------- WebSocket & Real-Time Updates ----------
 
 let ws = null;
 let wsReconnectTimer = null;
-let wsConnected = false;
 const WS_RECONNECT_DELAY = 5000;
 
 /**
@@ -1735,8 +2072,7 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-      console.log('WebSocket connected');
-      wsConnected = true;
+      console.warn('WebSocket connected');
       showConnectionStatus('connected');
       
       // Clear reconnect timer if exists
@@ -1757,25 +2093,22 @@ function initWebSocket() {
     
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      wsConnected = false;
       showConnectionStatus('error');
     };
     
     ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      wsConnected = false;
+      console.warn('WebSocket disconnected');
       showConnectionStatus('disconnected');
       
       // Attempt to reconnect after delay
       wsReconnectTimer = setTimeout(() => {
-        console.log('Attempting to reconnect WebSocket...');
+        console.warn('Attempting to reconnect WebSocket...');
         initWebSocket();
       }, WS_RECONNECT_DELAY);
     };
     
   } catch (error) {
     console.error('Failed to initialize WebSocket:', error);
-    wsConnected = false;
   }
 }
 
@@ -1783,11 +2116,11 @@ function initWebSocket() {
  * Handle incoming WebSocket messages
  */
 function handleWebSocketMessage(data) {
-  console.log('WebSocket message:', data.type, data);
+  console.warn('WebSocket message:', data.type, data);
   
   switch (data.type) {
     case 'connected':
-      console.log('WebSocket server says:', data.message);
+      console.warn('WebSocket server says:', data.message);
       break;
       
     case 'device_down':
@@ -1811,7 +2144,7 @@ function handleWebSocketMessage(data) {
       break;
       
     default:
-      console.debug('Unknown WebSocket message type:', data.type);
+      console.warn('Unknown WebSocket message type:', data.type);
   }
 }
 
@@ -1845,9 +2178,12 @@ function handleDeviceDown(alertData) {
   // Update device status in current view
   updateDeviceStatus(alertData.device_id, 'down');
   
-  // Refresh current tab data
+  // Refresh current tab data and diagram LEDs
+  diagStatus[alertData.device_id] = 'down';
   if (currentTab === 'dashboard' || currentTab === 'monitoring') {
     loadTab(currentTab);
+  } else if (currentTab === 'diagram') {
+    renderDiagram();
   }
 }
 
@@ -1855,7 +2191,7 @@ function handleDeviceDown(alertData) {
  * Handle device coming back UP
  */
 function handleDeviceUp(alertData) {
-  console.info('DEVICE UP:', alertData.device_name);
+  console.warn('DEVICE UP:', alertData.device_name);
   
   // Show browser notification
   showDesktopNotification(
@@ -1881,9 +2217,12 @@ function handleDeviceUp(alertData) {
   // Update device status in current view
   updateDeviceStatus(alertData.device_id, 'up');
   
-  // Refresh current tab data
+  // Refresh current tab data and diagram LEDs
+  diagStatus[alertData.device_id] = 'up';
   if (currentTab === 'dashboard' || currentTab === 'monitoring') {
     loadTab(currentTab);
+  } else if (currentTab === 'diagram') {
+    renderDiagram();
   }
 }
 
@@ -1892,7 +2231,7 @@ function handleDeviceUp(alertData) {
  */
 function handleMonitoringCycleComplete(data) {
   const summary = data.summary;
-  console.log(`Monitoring cycle: ${summary.up} up, ${summary.down} down (${summary.duration}ms)`);
+  console.warn(`Monitoring cycle: ${summary.up} up, ${summary.down} down (${summary.duration}ms)`);
   
   // Update monitoring status indicator
   updateMonitoringStatus(summary);
@@ -1907,7 +2246,7 @@ function handleMonitoringCycleComplete(data) {
  * Handle incident creation
  */
 function handleIncidentCreated(data) {
-  console.log('Incident created:', data.incident_id);
+  console.warn('Incident created:', data.incident_id);
   
   toast(`New incident #${data.incident_id}: ${data.device_name}`, 'warn');
   
@@ -1929,7 +2268,7 @@ function handleIncidentCreated(data) {
  * Handle incident resolution
  */
 function handleIncidentResolved(data) {
-  console.log('Incident resolved:', data.incident_id);
+  console.warn('Incident resolved:', data.incident_id);
   
   toast(`Incident #${data.incident_id} auto-resolved`, 'ok');
   
@@ -2015,7 +2354,6 @@ function showDesktopNotification(title, body, severity = 'info') {
   }
   
   if (Notification.permission === 'granted') {
-    const icon = severity === 'critical' ? '🔴' : severity === 'warning' ? '⚠️' : '✅';
     new Notification(title, {
       body: body,
       icon: '/favicon.ico',
@@ -2058,7 +2396,7 @@ function playAlertSound(type = 'info') {
     const freq = frequencies[type] || frequencies.info;
     let time = ctx.currentTime;
     
-    freq.forEach((f, i) => {
+    freq.forEach((f) => {
       oscillator.frequency.setValueAtTime(f, time);
       gainNode.gain.setValueAtTime(0.1, time);
       gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
@@ -2132,16 +2470,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const tab = ['dashboard', 'infrastructure', 'ipvlan', 'monitoring', 'incidents', 'diagram']
       .includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dashboard';
     currentTab = tab;
-    
-    // Setup screen disabled - go straight to dashboard
-    // if (!setup.configured) { 
-    //   showSetup('welcome'); 
-    //   return; 
-    // }
-    
-    orgSettings = { org_name: setup.org_name || 'Network Management Suite' };
+
+    orgSettings = { org_name: setup.org_name || 'NetVisor Suite' };
     applyOrgBranding(orgSettings.org_name);
-    $('#setupScreen').hidden = true;
     await warmCaches();
     goTab(tab);
     
@@ -2156,9 +2487,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   } catch (e) {
     console.error('Init error:', e);
     // Even on error, show the dashboard instead of blocking
-    orgSettings = { org_name: 'Network Management Suite' };
+    orgSettings = { org_name: 'NetVisor Suite' };
     applyOrgBranding(orgSettings.org_name);
-    $('#setupScreen').hidden = true;
     goTab('dashboard');
     
     // Still try to connect WebSocket

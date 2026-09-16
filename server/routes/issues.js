@@ -3,8 +3,12 @@ const db = require('../db').pool;
 const { notFound, badRequest } = require('../lib/errors');
 const validation = require('../lib/validation');
 const pagination = require('../lib/pagination');
+const { setDefaultOrg } = require('../middleware/default-org');
 
 const router = express.Router();
+
+// Use default org for unauthenticated access
+router.use(setDefaultOrg);
 
 const SEVERITIES = ['Low', 'Medium', 'High'];
 const STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -13,13 +17,15 @@ const ORDER_BY_STATUS = `
   CASE i.status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Resolved' THEN 2 ELSE 3 END`;
 
 router.get('/issues', async (req, res) => {
+  const orgId = req.user.orgId;
   const page = pagination.parse(req.query);
   const { sql, params } = pagination.apply(`
     SELECT i.*, d.name AS device_name, o.label AS outlet_label
     FROM issues i
     LEFT JOIN devices d ON d.id = i.device_id
     LEFT JOIN outlets o ON o.id = i.outlet_id
-    ORDER BY ${ORDER_BY_STATUS}, i.created_at DESC`, page);
+    WHERE i.org_id = $1
+    ORDER BY ${ORDER_BY_STATUS}, i.created_at DESC`, page, [orgId]);
   const { rows } = await db.query(sql, params);
   res.json(rows);
 });
@@ -38,16 +44,18 @@ function issueInput(body, current) {
 }
 
 router.post('/issues', async (req, res) => {
+  const orgId = req.user.orgId;
   const input = issueInput(req.body, null);
   if (!input.title) throw badRequest('title is required');
   const { rows } = await db.query(
-    'INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-    [input.title, input.description || null, input.severity, input.status, input.device_id, input.outlet_id, input.reporter || null]);
+    'INSERT INTO issues (title, description, severity, status, device_id, outlet_id, reporter, org_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+    [input.title, input.description || null, input.severity, input.status, input.device_id, input.outlet_id, input.reporter || null, orgId]);
   res.json(rows[0]);
 });
 
 router.patch('/issues/:id', async (req, res) => {
-  const issue = await db.query('SELECT * FROM issues WHERE id=$1', [req.params.id]).then(r => r.rows[0]);
+  const orgId = req.user.orgId;
+  const issue = await db.query('SELECT * FROM issues WHERE id=$1 AND org_id=$2', [req.params.id, orgId]).then(r => r.rows[0]);
   if (!issue) throw notFound();
   const input = issueInput(req.body, issue);
 
@@ -61,14 +69,15 @@ router.patch('/issues/:id', async (req, res) => {
   await db.query(
     `UPDATE issues SET title=COALESCE($1,title), description=COALESCE($2,description), severity=COALESCE($3,severity),
      status=$4, device_id=$5, outlet_id=$6,
-     reporter=COALESCE($7,reporter), resolved_at=$8 WHERE id=$9`,
-    [input.title || null, input.description || null, input.severity, input.status, deviceId, outletId, input.reporter || null, resolvedAt, req.params.id]);
-  const { rows } = await db.query('SELECT * FROM issues WHERE id=$1', [req.params.id]);
+     reporter=COALESCE($7,reporter), resolved_at=$8 WHERE id=$9 AND org_id=$10`,
+    [input.title || null, input.description || null, input.severity, input.status, deviceId, outletId, input.reporter || null, resolvedAt, req.params.id, orgId]);
+  const { rows } = await db.query('SELECT * FROM issues WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json(rows[0]);
 });
 
 router.delete('/issues/:id', async (req, res) => {
-  await db.query('DELETE FROM issues WHERE id=$1', [req.params.id]);
+  const orgId = req.user.orgId;
+  await db.query('DELETE FROM issues WHERE id=$1 AND org_id=$2', [req.params.id, orgId]);
   res.json({ ok: true });
 });
 
