@@ -3,9 +3,10 @@ const assert = require('node:assert');
 const { Pool } = require('pg');
 
 require('dotenv').config();
+const { dbServerBase } = require('./helpers');
 
 const dbName = `nms_test_${process.pid}_${Date.now()}`;
-const testDbUrl = (process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432').replace(/\/[^/]*$/, '');
+const testDbUrl = dbServerBase();
 process.env.DATABASE_URL = `${testDbUrl}/${dbName}`;
 process.env.RATE_LIMIT_MAX = '3';
 process.env.RATE_LIMIT_WINDOW_MS = '60000';
