@@ -13,7 +13,7 @@
     "fresh-start": "node scripts/clear-cache.js && npm start",
     "test": "node --test \"server/test/*.test.js\"",
     "test:functionality": "node scripts/test-functionality.js",
-    "lint": "eslint server public/js/app.js"
+    "lint": "eslint server public/js/app.js public/js/chat.js"
   },
   "keywords": [
     "network-management",

@@ -2,8 +2,11 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { Pool } = require('pg');
 
+require('dotenv').config();
+
 const dbName = `nms_test_${process.pid}_${Date.now()}`;
-process.env.DATABASE_URL = `postgresql://postgres:Bu0987654321%23@localhost:8869/${dbName}`;
+const testDbUrl = (process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432').replace(/\/[^/]*$/, '');
+process.env.DATABASE_URL = `${testDbUrl}/${dbName}`;
 process.env.RATE_LIMIT_MAX = '3';
 process.env.RATE_LIMIT_WINDOW_MS = '60000';
 
@@ -14,7 +17,7 @@ let server;
 let base;
 
 before(async () => {
-  const adminPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
+  const adminPool = new Pool({ connectionString: `${testDbUrl}/postgres` });
   await adminPool.query(`CREATE DATABASE "${dbName}"`);
   await adminPool.end();
 
@@ -28,7 +31,7 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
   await db.close();
 
-  const cleanupPool = new Pool({ connectionString: 'postgresql://postgres:Bu0987654321%23@localhost:8869/postgres' });
+  const cleanupPool = new Pool({ connectionString: `${testDbUrl}/postgres` });
   await cleanupPool.query(`DROP DATABASE IF EXISTS "${dbName}"`);
   await cleanupPool.end();
 });

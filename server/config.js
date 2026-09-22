@@ -66,6 +66,17 @@ module.exports = {
     url: (process.env.WEBHOOK_URL || '').trim(),
   },
   
+  // Chat assistant configuration (optional AI upgrade; local mode works without it)
+  ai: {
+    url: (process.env.BOT_API_URL || '').trim(),
+    key: (process.env.BOT_API_KEY || '').trim(),
+    model: (process.env.BOT_MODEL || 'gpt-4o-mini').trim(),
+    temperature: Number.isFinite(Number(process.env.BOT_TEMPERATURE)) ? Number(process.env.BOT_TEMPERATURE) : 0.4,
+    maxTokens: intFromEnv('BOT_MAX_TOKENS', 500),
+    timeoutMs: intFromEnv('BOT_TIMEOUT_MS', 20000),
+    maxHistory: intFromEnv('BOT_MAX_HISTORY', 12),
+  },
+  
   // JWT configuration for authentication
   jwtSecret: process.env.JWT_SECRET || 'your-secret-key-change-this-in-production',
   sessionSecret: process.env.SESSION_SECRET || 'your-session-secret-change-this',

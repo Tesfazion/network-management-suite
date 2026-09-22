@@ -642,6 +642,49 @@ paths:
         '200': { description: Deleted }
         '404': { description: Issue not found }
 
+  /chat:
+    post:
+      tags: [Assistant]
+      summary: Send a message to the network assistant
+      description: >
+        The assistant works fully offline with a local rule engine (how-to
+        answers plus live data). If BOT_API_KEY is configured the reply is
+        upgraded with an LLM and replies fall back to the local assistant on
+        API failure. Some intents run actions (check devices, log incidents).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, maxLength: 500 }
+                history:
+                  type: array
+                  maxItems: 12
+                  items:
+                    type: object
+                    properties:
+                      role: { type: string, enum: [user, assistant] }
+                      content: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply: { type: string }
+                  ai: { type: boolean, description: True when the reply came from the LLM }
+                  action: { type: string, nullable: true, description: e.g. check_all, check_device, create_issue }
+                  actionResult:
+                    type: object
+                    nullable: true
+                    description: Result of any run action
+        '400': { description: Validation error }
+
   /diagram:
     get:
       tags: [Diagram]

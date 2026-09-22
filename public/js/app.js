@@ -240,6 +240,7 @@ async function loadDashboard() {
   dashPanel(() => renderReach(d), 'reachability');
 
   dashPanel(() => { $('#dashConflicts').replaceChildren(...conflictsBlock(conflicts)); }, 'conflicts');
+  dashPanel(() => updateEventFeedDisplay(), 'activity');
 }
 
 /**
@@ -368,15 +369,17 @@ function renderDonut(d) {
 function renderTypes(d) {
   const box = $('#dashTypes');
   const types = d.deviceTypes || [];
-  if (types.length === 0) { box.append(el('div', 'dash-empty', 'No devices in the inventory yet.')); return; }
+  if (types.length === 0) { box.replaceChildren(el('div', 'dash-empty', 'No devices in the inventory yet.')); return; }
   const max = Math.max(...types.map((t) => Number(t.n)), 1);
+  const rows = [];
   types.forEach((t) => {
     const row = el('div', 'type-row');
     const top = el('div', 'type-top');
     top.append(el('span', 'type-name', t.device_type || 'Other'), el('span', 'type-n', t.n));
     row.append(top, meterFill((Number(t.n) / max) * 100));
-    box.append(row);
+    rows.push(row);
   });
+  box.replaceChildren(...rows);
 }
 
 /**
@@ -386,8 +389,9 @@ function renderTypes(d) {
 function renderVlans(d) {
   const box = $('#dashVlans');
   const vlans = d.vlans || [];
-  if (vlans.length === 0) { box.append(el('div', 'dash-empty', 'No VLANs defined yet.')); return; }
+  if (vlans.length === 0) { box.replaceChildren(el('div', 'dash-empty', 'No VLANs defined yet.')); return; }
   const max = Math.max(...vlans.map((v) => Number(v.devices)), 1);
+  const rows = [];
   vlans.forEach((v) => {
     const row = el('div', 'vlan-row');
     const top = el('div', 'vlan-top');
@@ -395,8 +399,9 @@ function renderVlans(d) {
     const meta = el('div', 'vlan-meta');
     meta.append(el('span', 'vlan-sub', v.subnet || 'no subnet'), el('span', 'vlan-count', v.devices + ' dev'));
     row.append(top, meta, meterFill((Number(v.devices) / max) * 100));
-    box.append(row);
+    rows.push(row);
   });
+  box.replaceChildren(...rows);
 }
 
 /**
@@ -407,10 +412,10 @@ function renderIssues(issues) {
   const box = $('#dashIssues');
   const open = issues.filter((i) => i.status !== 'Resolved' && i.status !== 'Closed');
   if (open.length === 0) {
-    box.append(el('div', 'dash-empty', 'No open incidents — everything is calm.'));
+    box.replaceChildren(el('div', 'dash-empty', 'No open incidents — everything is calm.'));
     return;
   }
-  open.slice(0, 4).forEach((i) => {
+  const rows = open.slice(0, 4).map((i) => {
     const row = el('div', 'issue-row sev-' + (i.severity || 'Medium').toLowerCase());
     const body = el('div', 'issue-body');
     body.append(el('div', 'issue-title', i.title));
@@ -424,8 +429,9 @@ function renderIssues(issues) {
     );
     body.append(meta);
     row.append(body, statusPillIssue(i.status));
-    box.append(row);
+    return row;
   });
+  box.replaceChildren(...rows);
 }
 
 /**
@@ -436,26 +442,27 @@ function renderReach(d) {
   const box = $('#dashUptime');
   const u = d.uptime;
   if (u.total === 0) {
-    box.append(el('div', 'dash-empty', 'No monitored devices yet. Enable monitoring or visit the Monitoring tab.'));
+    box.replaceChildren(el('div', 'dash-empty', 'No monitored devices yet. Enable monitoring or visit the Monitoring tab.'));
     return;
   }
   const order = { down: 0, up: 1, unknown: 2 };
-  const rows = [...u.monitored].sort((a, b) => order[a.status || 'unknown'] - order[b.status || 'unknown']);
-  rows.forEach((m) => {
-    const st = m.status || 'unknown';
-    const row = el('div', 'reach-row');
-    const body = el('div', 'reach-body');
-    body.append(el('div', 'reach-name', m.name));
-    const meta = el('div', 'reach-meta');
-    meta.append(el('span', '', m.ip || 'no IP'), el('span', 'dot-sep', '·'), el('span', '', m.device_type || '—'));
-    body.append(meta);
-    const side = el('div', 'reach-side');
-    if (st === 'up' && m.rtt_ms != null) side.append(el('span', 'reach-rtt', m.rtt_ms + ' ms'));
-    if (st === 'down') side.append(el('span', 'reach-down', 'offline'));
-    if (m.checked_at) side.append(el('span', 'reach-date', fmtTime(m.checked_at)));
-    row.append(el('span', 'dot st-' + st), body, side);
-    box.append(row);
-  });
+  const rows = [...u.monitored].sort((a, b) => order[a.status || 'unknown'] - order[b.status || 'unknown'])
+    .map((m) => {
+      const st = m.status || 'unknown';
+      const row = el('div', 'reach-row');
+      const body = el('div', 'reach-body');
+      body.append(el('div', 'reach-name', m.name));
+      const meta = el('div', 'reach-meta');
+      meta.append(el('span', '', m.ip || 'no IP'), el('span', 'dot-sep', '·'), el('span', '', m.device_type || '—'));
+      body.append(meta);
+      const side = el('div', 'reach-side');
+      if (st === 'up' && m.rtt_ms != null) side.append(el('span', 'reach-rtt', m.rtt_ms + ' ms'));
+      if (st === 'down') side.append(el('span', 'reach-down', 'offline'));
+      if (m.checked_at) side.append(el('span', 'reach-date', fmtTime(m.checked_at)));
+      row.append(el('span', 'dot st-' + st), body, side);
+      return row;
+    });
+  box.replaceChildren(...rows);
 }
 
 $('#dashCheckAll').addEventListener('click', async (e) => {
@@ -692,6 +699,7 @@ async function loadMonitoring() {
   summary.textContent = `${up} up · ${down} down · ${status.length - up - down} not checked`;
   $('#monitorBody').replaceChildren(...status.map((s) => {
     const tr = el('tr');
+    tr.setAttribute('data-device-id', s.id);
     const st = s.last_status ? pill(s.last_status, s.last_status === 'up' ? 'UP' : 'DOWN') : pill('pending', 'Never checked');
     const tdSt = el('td', ''); tdSt.append(st);
     const histBtn = el('button', 'btn sm ghost', 'History');
@@ -1109,10 +1117,22 @@ const diag = { nodes: [], links: [], zones: [] };
 let diagStatus = {};
 let diagSel = null;                // selected node id
 let diagSelZone = null;            // selected zone/site id
+let diagSelLink = null;            // selected link index into diag.links
 let diagPlace = null;              // active type to place (or null)
+let diagConnectMode = false;       // two-click connect mode is armed
 let diagConnFrom = null;           // connect-mode first node id
+let diagMouse = null;              // last pointer position over the canvas (connect preview)
 let diagSaveTimer = null;
 let diagDemoMode = false;          // demo / practice mode
+let diagZoom = 1;                  // current canvas zoom scale
+let diagGridOn = true;             // show the background snap grid
+let diagHistory = [];              // undo stack of diagram snapshots
+let diagRedo = [];                 // redo stack of diagram snapshots
+let diagFitted = false;            // whether the initial zoom-fit has run
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 3;
+const SNAP = 24;                   // snap-to-grid size (diagram units)
+const DIAG_HISTORY_LIMIT = 60;
 
 const DEFAULT_LABEL = {
   router: 'Router', switch: 'Switch', hub: 'Hub', bridge: 'Bridge',
@@ -1138,6 +1158,12 @@ function currentLinkType() {
 /** Toggle demo mode on/off. */
 function setDemoMode(on) {
   diagDemoMode = on;
+  if (on) {
+    resetConnectMode();
+    diagSelLink = null;
+    diagSel = null;
+    diagSelZone = null;
+  }
   const editBtn = $('#diagModeEdit');
   const demoBtn = $('#diagModeDemo');
   const panel = $('#diagDemoPanel');
@@ -1158,6 +1184,13 @@ async function loadDiagram() {
   diag.nodes = saved.nodes || [];
   diag.links = saved.links || [];
   diag.zones = saved.zones || [];
+  diagHistory = [];
+  diagRedo = [];
+  diagSel = null;
+  diagSelZone = null;
+  diagSelLink = null;
+  diagMouse = null;
+  resetConnectMode();
   window.__devicesCache = devices;
   diagStatus = {};
   statuses.forEach((s) => { if (s.id != null) diagStatus[s.id] = s.last_status; });
@@ -1167,13 +1200,13 @@ async function loadDiagram() {
   sel.append(new Option('Attach to device…', ''));
   devices.forEach((d) => sel.append(new Option(`${d.name}${d.ip ? ' (' + d.ip + ')' : ''}`, d.id)));
 
-  const traceFrom = $('#diagTraceFrom');
-  const traceTo = $('#diagTraceTo');
-  if (traceFrom) { traceFrom.replaceChildren(new Option('Select node…', '')); diag.nodes.forEach((n) => traceFrom.append(new Option(n.label || n.id, n.id))); }
-  if (traceTo) { traceTo.replaceChildren(new Option('Select node…', '')); diag.nodes.forEach((n) => traceTo.append(new Option(n.label || n.id, n.id))); }
-
+  refreshTraceOptions();
   populateDiagPropControls();
   renderDiagram();
+  if (!diagFitted && (diag.nodes.length || diag.zones.length)) {
+    diagFitted = true;
+    zoomFit();
+  }
 }
 
 /** Clear trace output and reset demo state. */
@@ -1184,6 +1217,40 @@ function clearTrace() {
   const to = $('#diagTraceTo');
   if (from) from.value = '';
   if (to) to.value = '';
+}
+
+let diagTraceSig = '';
+
+/**
+ * Refresh the Demo/Trace source + destination dropdowns to match
+ * the current set of canvas nodes. Rebuilds only when the set changes.
+ */
+function refreshTraceOptions() {
+  const from = $('#diagTraceFrom');
+  const to = $('#diagTraceTo');
+  if (!from || !to) return;
+  const sig = diag.nodes.map((n) => (n.label || '') + '\u0000' + n.id).join('|');
+  if (sig === diagTraceSig) return;
+  diagTraceSig = sig;
+  const keepF = from.value;
+  const keepT = to.value;
+  [from, to].forEach((sel) => {
+    sel.replaceChildren(new Option('Select node…', ''));
+    diag.nodes.forEach((n) => sel.append(new Option(n.label || n.id, n.id)));
+  });
+  from.value = keepF;
+  to.value = keepT;
+}
+
+/** Esc cancels connect/place modes or clears the current selection. */
+function diagCancelMode() {
+  if (diagConnectMode) { resetConnectMode(); renderDiagram(); return; }
+  if (diagSelLink != null || diagSel || diagSelZone) {
+    diagSelLink = null;
+    diagSel = null;
+    diagSelZone = null;
+    renderDiagram();
+  }
 }
 
 /** Run a simulated trace / ping between two diagram nodes. */
@@ -1243,6 +1310,152 @@ function findPath(fromId, toId) {
 
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+/** Snap a coordinate to the diagram grid. */
+function snap(v) { return Math.round(v / SNAP) * SNAP; }
+
+/** Resize the SVG element to the current zoom level. */
+function applyZoom() {
+  const svg = $('#diagCanvas');
+  if (!svg) return;
+  svg.style.width = Math.round(DIAG_W * diagZoom) + 'px';
+  svg.style.height = Math.round(DIAG_H * diagZoom) + 'px';
+  const z = $('#diagZoomLabel');
+  if (z) z.textContent = Math.round(diagZoom * 100) + '%';
+}
+
+/** Set zoom (clamped), keeping the point under px,py stable when provided. */
+function setZoom(z, px, py) {
+  const scroll = $('#diagScroll');
+  const prev = diagZoom;
+  diagZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  const f = diagZoom / prev;
+  if (px !== undefined && py !== undefined && scroll && f !== 1) {
+    scroll.scrollLeft += (px * f - px);
+    scroll.scrollTop += (py * f - py);
+  }
+  applyZoom();
+}
+
+/** Zoom so the entire diagram (nodes + zones) is visible inside the scroll area. */
+function zoomFit() {
+  const scroll = $('#diagScroll');
+  if (!scroll) { setZoom(1); return; }
+  const nodes = diag.nodes;
+  const zones = diag.zones;
+  if (!nodes.length && !zones.length) {
+    setZoom(1);
+    scroll.scrollLeft = 0;
+    scroll.scrollTop = 0;
+    return;
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  zones.forEach((z) => {
+    minX = Math.min(minX, z.x); minY = Math.min(minY, z.y);
+    maxX = Math.max(maxX, z.x + z.w); maxY = Math.max(maxY, z.y + z.h);
+  });
+  nodes.forEach((n) => {
+    minX = Math.min(minX, n.x - 90); minY = Math.min(minY, n.y - 90);
+    maxX = Math.max(maxX, n.x + 90); maxY = Math.max(maxY, n.y + 90);
+  });
+  const cw = Math.max(scroll.clientWidth - 48, 240);
+  const ch = Math.max(scroll.clientHeight - 48, 240);
+  const bw = Math.max(maxX - minX, 200);
+  const bh = Math.max(maxY - minY, 200);
+  setZoom(Math.min(Math.min(cw / bw, ch / bh), 1.5));
+  const contentW = (maxX - minX) * diagZoom;
+  const contentH = (maxY - minY) * diagZoom;
+  scroll.scrollLeft = Math.max(0, Math.round(minX * diagZoom - (cw - contentW) / 2));
+  scroll.scrollTop = Math.max(0, Math.round(minY * diagZoom - (ch - contentH) / 2));
+}
+
+/** Toggle the background grid on/off. */
+function setGrid(on) {
+  diagGridOn = on;
+  const btn = $('#diagGridToggle');
+  if (btn) btn.classList.toggle('active', on);
+  renderDiagram();
+}
+
+// ---- History (undo / redo) ----
+
+/** Deep snapshot of the current diagram state (nodes, links, zones). */
+function historySnapshot() {
+  return {
+    nodes: JSON.parse(JSON.stringify(diag.nodes)),
+    links: JSON.parse(JSON.stringify(diag.links)),
+    zones: JSON.parse(JSON.stringify(diag.zones)),
+  };
+}
+
+/** Push a snapshot onto the undo stack. Pass a pre-mutation snapshot for drags. */
+function recordHistory(snapshot) {
+  diagHistory.push(snapshot || historySnapshot());
+  if (diagHistory.length > DIAG_HISTORY_LIMIT) diagHistory.shift();
+  diagRedo = [];
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  const u = $('#diagUndo');
+  const r = $('#diagRedo');
+  if (u) u.disabled = !diagHistory.length;
+  if (r) r.disabled = !diagRedo.length;
+}
+
+function undoDiagram() {
+  if (!diagHistory.length) { toast('Nothing to undo', 'warn'); return; }
+  diagRedo.push(historySnapshot());
+  const prev = diagHistory.pop();
+  diag.nodes = prev.nodes;
+  diag.links = prev.links;
+  diag.zones = prev.zones;
+  diagSel = null;
+  diagSelZone = null;
+  renderDiagram();
+  touchDiagram();
+  toast('Undo', 'ok');
+}
+
+function redoDiagram() {
+  if (!diagRedo.length) { toast('Nothing to redo', 'warn'); return; }
+  diagHistory.push(historySnapshot());
+  const next = diagRedo.pop();
+  diag.nodes = next.nodes;
+  diag.links = next.links;
+  diag.zones = next.zones;
+  diagSel = null;
+  diagSelZone = null;
+  renderDiagram();
+  touchDiagram();
+  toast('Redo', 'ok');
+}
+
+/** Refresh the little node/link/site up/down summary in the diagram header. */
+function renderDiagStats() {
+  const st = $('#diagStats');
+  if (!st) return;
+  let up = 0, down = 0;
+  diag.nodes.forEach((n) => {
+    const s = statusFor(n);
+    if (s === 'up') up++;
+    else if (s === 'down') down++;
+  });
+  st.innerHTML =
+    '<span class="ds ds-node">' + diag.nodes.length + ' nodes</span>' +
+    '<span class="ds ds-link">' + diag.links.length + ' links</span>' +
+    '<span class="ds ds-zone">' + diag.zones.length + ' sites</span>' +
+    '<span class="ds ds-up">' + up + ' up</span>' +
+    '<span class="ds ds-down">' + down + ' down</span>';
+}
+
+/** Update the auto-save status pill. */
+function setSaveStatus(msg, kind) {
+  const s = $('#diagSaveStatus');
+  if (!s) return;
+  s.textContent = msg;
+  s.className = 'diag-save-status' + (kind ? ' ' + kind : '');
+}
+
 function uid() { return 'n' + Math.random().toString(36).slice(2, 9); }
 
 /** Find a node by its id. */
@@ -1269,6 +1482,9 @@ function selectZone(id) { diagSelZone = id; diagSel = null; }
  * @param {number} y
  */
 function placeNode(type, x, y) {
+  recordHistory();
+  x = snap(x);
+  y = snap(y);
   const count = diag.nodes.filter((n) => n.type === type).length;
   const n = { id: uid(), type, label: (DEFAULT_LABEL[type] || type) + (count ? '-' + (count + 1) : ''), x, y, device_id: null, zone: zoneAt(x, y) };
   diag.nodes.push(n);
@@ -1281,35 +1497,80 @@ function placeNode(type, x, y) {
  * Re-render the entire diagram SVG from the current `diag` state.
  */
 function renderDiagram() {
+  if (diagSelLink != null && !diag.links[diagSelLink]) diagSelLink = null;
   const svg = $('#diagCanvas');
   svg.replaceChildren(diagDefs(), diagBgRect());
   diag.zones.forEach((z) => svg.appendChild(zoneGroup(z)));
-  diag.links.forEach((l) => {
-    const line = diagLinkEl(l);
-    if (line) svg.appendChild(line);
+  diag.links.forEach((l, i) => {
+    const linkGroup = diagLinkEl(l, i);
+    if (linkGroup) svg.appendChild(linkGroup);
   });
+  if (diagConnectMode && diagConnFrom) {
+    const src = nodeById(diagConnFrom);
+    if (src) {
+      const pv = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      pv.id = 'diagPreview';
+      pv.setAttribute('x1', src.x); pv.setAttribute('y1', src.y);
+      pv.setAttribute('x2', (diagMouse && diagMouse.x) || src.x);
+      pv.setAttribute('y2', (diagMouse && diagMouse.y) || src.y);
+      pv.classList.add('diag-preview');
+      svg.appendChild(pv);
+    }
+  }
   diag.nodes.forEach((n) => svg.appendChild(nodeGroup(n)));
   const rename = $('#diagZoneRename');
   if (rename) rename.disabled = !diagSelZone;
   renderNodeProps();
+  applyZoom();
+  renderDiagStats();
+  refreshTraceOptions();
+  updateHistoryButtons();
+  const empty = $('#diagEmpty');
+  if (empty) empty.hidden = diagDemoMode || diag.nodes.length > 0 || diag.zones.length > 0;
 }
 
-/** Build an SVG line element for a link, styled by its connection type. */
-function diagLinkEl(l) {
+/** Build an SVG group for a link: a wide invisible "hit" line for easy
+ *  selection on top of the styled line, tinted by the connection type. */
+function diagLinkEl(l, i) {
   const a = nodeById(l.from);
   const b = nodeById(l.to);
   if (!a || !b) return null;
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  const ns = 'http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns, 'g');
+  g.classList.add('diag-link-g');
+  if (i === diagSelLink) g.classList.add('sel');
+
+  const type = LINK_TYPES.has(l.type) ? l.type : 'copper';
+  const line = document.createElementNS(ns, 'line');
   line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
   line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-  const type = LINK_TYPES.has(l.type) ? l.type : 'copper';
   line.classList.add('diag-link', 'lk-' + type);
   if (l.label) {
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    const title = document.createElementNS(ns, 'title');
     title.textContent = l.label + ' — ' + type;
     line.appendChild(title);
   }
-  return line;
+  g.appendChild(line);
+
+  const tip = document.createElementNS(ns, 'title');
+  tip.textContent = `${a.label || a.id} ⇄ ${b.label || b.id} · ${type} — click to select`;
+  g.appendChild(tip);
+
+  const hit = document.createElementNS(ns, 'line');
+  hit.setAttribute('x1', a.x); hit.setAttribute('y1', a.y);
+  hit.setAttribute('x2', b.x); hit.setAttribute('y2', b.y);
+  hit.classList.add('diag-link-hit');
+  hit.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    if (diagConnectMode || diagPlace) return;
+    selectNode(null);
+    diagSel = null;
+    diagSelZone = null;
+    diagSelLink = i;
+    renderDiagram();
+  });
+  g.appendChild(hit);
+  return g;
 }
 
 function diagDefs() {
@@ -1330,7 +1591,8 @@ function diagBgRect() {
   const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
   rect.setAttribute('x', '0'); rect.setAttribute('y', '0');
   rect.setAttribute('width', DIAG_W); rect.setAttribute('height', DIAG_H);
-  rect.setAttribute('fill', 'url(#diagGrid)');
+  rect.classList.add('diag-bg');
+  rect.classList.toggle('grid', diagGridOn);
   return rect;
 }
 
@@ -1398,6 +1660,7 @@ function zoneGroup(z) {
   const hit = mk('rect', { x: z.x, y: z.y, width: z.w, height: z.h }, 'zone-hit');
   hit.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
+    if (diagConnectMode) { resetConnectMode(); renderDiagram(); return; }
     if (diagPlace) {
       const rect = $('#diagCanvas').getBoundingClientRect();
       placeNode(diagPlace,
@@ -1405,6 +1668,7 @@ function zoneGroup(z) {
         Math.round((e.clientY - rect.top) * (DIAG_H / rect.height)));
       return;
     }
+    diagSelLink = null;
     selectZone(z.id);
     startZoneDrag(z, e);
   });
@@ -1422,13 +1686,14 @@ function startZoneDrag(z, e) {
   const rect = svg.getBoundingClientRect();
   const offX = z.x - (e.clientX - rect.left) * (DIAG_W / rect.width);
   const offY = z.y - (e.clientY - rect.top) * (DIAG_H / rect.height);
+  const before = historySnapshot();
   let moved = false;
   const move = (ev) => {
     moved = true;
     const nx = Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width) + offX);
     const ny = Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height) + offY);
-    const zx = Math.max(0, Math.min(nx, DIAG_W - z.w));
-    const zy = Math.max(0, Math.min(ny, DIAG_H - z.h));
+    const zx = Math.max(0, Math.min(snap(nx), DIAG_W - z.w));
+    const zy = Math.max(0, Math.min(snap(ny), DIAG_H - z.h));
     const dx = zx - z.x, dy = zy - z.y;
     z.x = zx; z.y = zy;
     diag.nodes.forEach((n) => { if (n.zone === z.id) { n.x += dx; n.y += dy; } });
@@ -1437,7 +1702,7 @@ function startZoneDrag(z, e) {
   const up = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
-    if (moved) touchDiagram();
+    if (moved) { recordHistory(before); touchDiagram(); }
   };
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
@@ -1447,16 +1712,18 @@ function startZoneResize(z) {
   const svg = $('#diagCanvas');
   const rect = svg.getBoundingClientRect();
   const sx = z.x, sy = z.y;
+  const before = historySnapshot();
   const move = (ev) => {
     const mx = Math.min(Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width)), DIAG_W);
     const my = Math.min(Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height)), DIAG_H);
-    z.w = Math.max(90, mx - sx);
-    z.h = Math.max(70, my - sy);
+    z.w = Math.max(96, snap(mx) - sx);
+    z.h = Math.max(96, snap(my) - sy);
     renderDiagram();
   };
   const up = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
+    recordHistory(before);
     touchDiagram();
   };
   document.addEventListener('pointermove', move);
@@ -1464,6 +1731,7 @@ function startZoneResize(z) {
 }
 
 function addZone() {
+  recordHistory();
   const z = { id: 'z' + uid(), label: 'New site', x: 70, y: 70, w: 320, h: 180, room_id: null, city: '', building: '' };
   diag.zones.push(z);
   selectZone(z.id);
@@ -1480,6 +1748,7 @@ function renameZone(z) {
   if (!z) return;
   const name = prompt('Site / office / city name:', z.label || '');
   if (name && name.trim()) {
+    recordHistory();
     z.label = name.trim();
     const city = prompt('City / region (optional):', z.city || '');
     if (city !== null) z.city = city.trim();
@@ -1503,6 +1772,7 @@ function nodeGroup(n) {
   g.setAttribute('data-id', n.id);
   g.classList.add('diag-node');
   if (n.id === diagSel) g.classList.add('sel');
+  if (n.id === diagConnFrom) g.classList.add('conn-src');
 
   const shape = document.createElementNS(svgNS, 'g');
   shape.classList.add('shape', 't-' + n.type);
@@ -1560,8 +1830,10 @@ function ledTitle(st) {
 /** Rename a node via a prompt (Packet-Tracer style double-click rename). */
 function renameNode(n) {
   if (!n) return;
+  if (diagConnectMode) return;
   const name = prompt('Node name:', n.label || '');
   if (name && name.trim()) {
+    recordHistory();
     n.label = name.trim();
     renderDiagram();
     touchDiagram();
@@ -1653,36 +1925,85 @@ function drawShape(shape, type) {
 
 function pickNode(n, e) {
   if (diagDemoMode) {
-    toast('Switch to Edit mode to modify the diagram', 'warn');
+    const from = $('#diagTraceFrom');
+    const to = $('#diagTraceTo');
+    if (!from || !to) return;
+    const sameNode = from.value === n.id || to.value === n.id;
+    if (sameNode) {
+      from.value = '';
+      to.value = '';
+      renderDiagram();
+      toast('Trace reset — click the source node again', 'warn');
+      return;
+    }
+    if (!from.value) {
+      from.value = n.id;
+      renderDiagram();
+      toast('Trace source: ' + (n.label || n.id) + ' — now click the destination', 'ok');
+      return;
+    }
+    if (!to.value) {
+      to.value = n.id;
+      renderDiagram();
+      runTrace();
+      return;
+    }
+    from.value = n.id;
+    to.value = '';
+    renderDiagram();
+    toast('Trace source: ' + (n.label || n.id) + ' — now click the destination', 'ok');
     return;
   }
-  if (diagConnFrom) {
-    if (diagConnFrom !== n.id) {
-      const dup = diag.links.some((l) =>
-        (l.from === diagConnFrom && l.to === n.id) || (l.from === n.id && l.to === diagConnFrom));
-      const ltype = currentLinkType();
-      if (!dup) { diag.links.push({ from: diagConnFrom, to: n.id, type: ltype }); touchDiagram(); toast('Connected (' + ltype + ')'); }
+  if (diagConnectMode) {
+    if (!diagConnFrom) {
+      diagConnFrom = n.id;                 // 1st click: remember the source
+      diagSelLink = null;
+      selectNode(n.id);
+      renderDiagram();
+      setConnectMode(true);
+      toast('Now click the second node to create the link', 'ok');
+      return;
     }
-    resetConnectMode();
+    if (diagConnFrom === n.id) {
+      renderDiagram();
+      toast('Pick a different node to connect to', 'warn');
+      return;
+    }
+    const dup = diag.links.some((l) =>
+      (l.from === diagConnFrom && l.to === n.id) || (l.from === n.id && l.to === diagConnFrom));
+    const ltype = currentLinkType();
+    if (dup) {
+      toast('These nodes are already connected', 'warn');
+    } else {
+      recordHistory();
+      diag.links.push({ from: diagConnFrom, to: n.id, type: ltype });
+      touchDiagram();
+      toast('Connected (' + ltype + ')');
+    }
+    diagConnFrom = null;                    // stay in connect mode to wire more pairs
     renderDiagram();
+    setConnectMode(true);
     return;
   }
   selectNode(n.id);
+  diagSelLink = null;
   renderDiagram();
   startDrag(n, e);
 }
 
 /** Toggle the connect-mode button label/state. */
 function setConnectMode(active) {
+  diagConnectMode = active;
   const btn = $('#diagConnect');
   if (!btn) return;
   btn.classList.toggle('active', active);
-  btn.textContent = active ? 'Connect: click 1st node' : 'Connect';
+  btn.textContent = !active ? 'Connect' : (diagConnFrom ? 'Connect: click 2nd node' : 'Connect: click 1st node');
 }
 
 /** Leave connect/place modes and clear their active styling. */
 function resetConnectMode() {
   diagConnFrom = null;
+  diagConnectMode = false;
   diagPlace = null;
   document.querySelectorAll('.diag-add').forEach((b) => b.classList.remove('active'));
   setConnectMode(false);
@@ -1693,17 +2014,18 @@ function startDrag(n, e) {
   const rect = svg.getBoundingClientRect();
   const offX = n.x - (e.clientX - rect.left) * (DIAG_W / rect.width);
   const offY = n.y - (e.clientY - rect.top) * (DIAG_H / rect.height);
+  const before = historySnapshot();
   let moved = false;
   const move = (ev) => {
     moved = true;
-    n.x = Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width) + offX);
-    n.y = Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height) + offY);
+    n.x = snap(Math.round((ev.clientX - rect.left) * (DIAG_W / rect.width) + offX));
+    n.y = snap(Math.round((ev.clientY - rect.top) * (DIAG_H / rect.height) + offY));
     renderDiagram();
   };
   const up = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', up);
-    if (moved) touchDiagram();
+    if (moved) { recordHistory(before); touchDiagram(); }
   };
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
@@ -1715,22 +2037,36 @@ $('#diagCanvas').addEventListener('pointerdown', (e) => {
   const x = Math.round((e.clientX - rect.left) * (DIAG_W / rect.width));
   const y = Math.round((e.clientY - rect.top) * (DIAG_H / rect.height));
   if (diagDemoMode) {
-    toast('Switch to Edit mode to modify the diagram', 'warn');
+    clearTrace();
+    renderDiagram();
     return;
   }
   if (diagPlace && x > 0 && y > 0) {
     placeNode(diagPlace, x, y);
     return;
   }
-  if (diagConnFrom) {
+  if (diagConnectMode) {
     resetConnectMode();
     renderDiagram();
     return;
   }
   diagSel = null;
   diagSelZone = null;
+  diagSelLink = null;
   renderDiagram();
 });
+
+$('#diagCanvas').addEventListener('pointermove', (e) => {
+  if (!diagConnectMode || !diagConnFrom) return;
+  const rect = $('#diagCanvas').getBoundingClientRect();
+  const x = Math.round((e.clientX - rect.left) * (DIAG_W / rect.width));
+  const y = Math.round((e.clientY - rect.top) * (DIAG_H / rect.height));
+  diagMouse = { x, y };
+  const pv = $('#diagPreview');
+  if (pv) { pv.setAttribute('x2', x); pv.setAttribute('y2', y); }
+});
+
+$('#diagCanvas').addEventListener('pointerleave', () => { diagMouse = null; });
 
 document.querySelectorAll('.diag-add').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -1747,14 +2083,38 @@ document.querySelectorAll('.diag-add').forEach((btn) => {
 });
 
 $('#diagConnect').addEventListener('click', () => {
+  const next = !diagConnectMode;
   diagConnFrom = null;
   diagPlace = null;
+  if (next) diagSelLink = null;
   document.querySelectorAll('.diag-add').forEach((b) => b.classList.remove('active'));
-  setConnectMode(!$('#diagConnect').classList.contains('active'));
+  setConnectMode(next);
+  renderDiagram();
+  if (next) toast('Connect mode on — click the first node, then the second', 'ok');
+});
+
+$('#diagLinkType').addEventListener('change', () => {
+  const li = diag.links[diagSelLink];
+  if (!li) return;
+  recordHistory();
+  li.type = currentLinkType();
+  renderDiagram();
+  touchDiagram();
+  toast('Link type changed to ' + li.type);
 });
 
 $('#diagDelete').addEventListener('click', () => {
+  if (diagSelLink != null) {
+    recordHistory();
+    diag.links.splice(diagSelLink, 1);
+    diagSelLink = null;
+    renderDiagram();
+    touchDiagram();
+    toast('Link removed');
+    return;
+  }
   if (diagSelZone) {
+    recordHistory();
     const keep = diag.zones.find((zz) => zz.id === diagSelZone);
     diag.zones = diag.zones.filter((zz) => zz.id !== diagSelZone);
     diag.nodes.forEach((n) => { if (n.zone === diagSelZone) n.zone = null; });
@@ -1765,16 +2125,13 @@ $('#diagDelete').addEventListener('click', () => {
     return;
   }
   if (!diagSel) return toast('Select a node or site first', 'warn');
+  recordHistory();
   diag.nodes = diag.nodes.filter((n) => n.id !== diagSel);
   diag.links = diag.links.filter((l) => l.from !== diagSel && l.to !== diagSel);
   diagSel = null;
   renderDiagram();
   touchDiagram();
   toast('Node deleted');
-});
-
-$('#diagCanvas').addEventListener('keydown', (e) => {
-  if ((e.key === 'Delete' || e.key === 'Backspace') && (diagSel || diagSelZone)) $('#diagDelete').click();
 });
 
 $('#diagAddZone').addEventListener('click', () => {
@@ -1797,6 +2154,7 @@ $('#diagDeviceLink').addEventListener('change', (e) => {
   if (!n) return toast('Click a node on the canvas to select it first', 'warn');
   const dev = (window.__devicesCache || []).find((d) => d.id === id);
   if (!dev) return;
+  recordHistory();
   n.device_id = dev.id;
   n.label = dev.name;
   if (DEV_TYPE_TO_NODE[dev.device_type]) n.type = DEV_TYPE_TO_NODE[dev.device_type];
@@ -1808,9 +2166,15 @@ $('#diagDeviceLink').addEventListener('change', (e) => {
 $('#diagImport').addEventListener('click', async () => {
   const devices = await api('/api/v1/devices');
   if (!devices.length) return toast('No devices in the inventory', 'warn');
-  diag.nodes = devices.map((d, i) => {
+  const existing = diag.nodes.length + diag.links.length + diag.zones.length;
+  if (existing > 0 && !confirm('Add the inventory devices to the current diagram, keeping existing nodes and links?')) return;
+  recordHistory();
+  const byDevice = new Map(diag.nodes.filter((n) => n.device_id != null).map((n) => [n.device_id, n]));
+  const placed = [];
+  devices.forEach((d, i) => {
+    if (byDevice.has(d.id)) return;
     const col = i % 4, row = Math.floor(i / 4);
-    return {
+    const n = {
       id: 'n' + d.id,
       type: DEV_TYPE_TO_NODE[d.device_type] || 'pc',
       label: d.name,
@@ -1818,16 +2182,24 @@ $('#diagImport').addEventListener('click', async () => {
       device_id: d.id,
       status: 'unknown',
     };
+    diag.nodes.push(n);
+    byDevice.set(d.id, n);
+    placed.push(n);
   });
-  diag.links = [];
+  if (!placed.length) {
+    diagHistory.pop();
+    renderDiagram();
+    return toast('All inventory devices are already on the canvas');
+  }
   const core = diag.nodes.find((n) => n.label === 'CoreSwitch') || diag.nodes[0];
-  diag.nodes.forEach((n) => { if (n.id !== core.id) diag.links.push({ from: core.id, to: n.id }); });
+  placed.forEach((n) => { if (n.id !== core.id) diag.links.push({ from: core.id, to: n.id, type: 'copper' }); });
   renderDiagram();
   touchDiagram();
-  toast('Imported ' + devices.length + ' devices');
+  toast('Imported ' + placed.length + (existing ? ' new devices' : ' devices'));
 });
 
 $('#diagLayout').addEventListener('click', () => {
+  recordHistory();
   const cx = DIAG_W / 2, cy = DIAG_H / 2;
   diag.nodes.forEach((n, i) => {
     const a = (i / Math.max(diag.nodes.length, 1)) * Math.PI * 2;
@@ -1843,24 +2215,173 @@ $('#diagLayout').addEventListener('click', () => {
  */
 function touchDiagram() {
   clearTimeout(diagSaveTimer);
+  setSaveStatus('Saving…');
   diagSaveTimer = setTimeout(async () => {
-    try { await api('/api/v1/diagram', { method: 'PUT', body: JSON.stringify(diag) }); }
-    catch (e) { toast(e.message, 'err'); }
+    try {
+      await api('/api/v1/diagram', { method: 'PUT', body: JSON.stringify(diag) });
+      setSaveStatus('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 'ok');
+    } catch (e) {
+      setSaveStatus('Save failed', 'err');
+      toast(e.message, 'err');
+    }
   }, 800);
 }
 
 $('#diagSave').addEventListener('click', async () => {
   clearTimeout(diagSaveTimer);
+  setSaveStatus('Saving…');
   try {
     await api('/api/v1/diagram', { method: 'PUT', body: JSON.stringify(diag) });
+    setSaveStatus('Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 'ok');
     toast('Diagram saved');
-  } catch (e) { toast(e.message, 'err'); }
+  } catch (e) {
+    setSaveStatus('Save failed', 'err');
+    toast(e.message, 'err');
+  }
 });
 
 $('#diagModeEdit').addEventListener('click', () => setDemoMode(false));
 $('#diagModeDemo').addEventListener('click', () => setDemoMode(true));
 $('#diagTraceRun').addEventListener('click', runTrace);
 $('#diagTraceClear').addEventListener('click', clearTrace);
+
+// ---- View tools (zoom, grid) ----
+
+$('#diagZoomIn').addEventListener('click', () => setZoom(diagZoom * 1.25));
+$('#diagZoomOut').addEventListener('click', () => setZoom(diagZoom / 1.25));
+$('#diagZoomFit').addEventListener('click', zoomFit);
+$('#diagGridToggle').addEventListener('click', () => setGrid(!diagGridOn));
+
+$('#diagScroll').addEventListener('wheel', (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  const rect = $('#diagCanvas').getBoundingClientRect();
+  const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  setZoom(diagZoom * factor, e.clientX - rect.left, e.clientY - rect.top);
+}, { passive: false });
+
+// ---- History buttons ----
+
+$('#diagUndo').addEventListener('click', undoDiagram);
+$('#diagRedo').addEventListener('click', redoDiagram);
+
+// ---- Export / print ----
+
+/** Collect the diagram-relevant CSS rules from the page stylesheets. */
+function cssForDiagram() {
+  const keep = [];
+  const want = [':root', '.diag-', '.shape', '.led', '.zone-', '.lk-', '.leg'];
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const r of rules) {
+      if (r && r.selectorText && want.some((w) => r.selectorText.includes(w))) keep.push(r.cssText);
+    }
+  }
+  return keep.join('\n');
+}
+
+/** Serialize the current canvas plus its styles into a standalone SVG string. */
+function diagramSvgText() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = $('#diagCanvas').cloneNode(true);
+  svg.removeAttribute('style');
+  svg.setAttribute('xmlns', NS);
+  svg.setAttribute('width', DIAG_W);
+  svg.setAttribute('height', DIAG_H);
+  svg.setAttribute('viewBox', '0 0 ' + DIAG_W + ' ' + DIAG_H);
+  const style = document.createElementNS(NS, 'style');
+  style.textContent = cssForDiagram();
+  svg.insertBefore(style, svg.firstChild);
+  return new XMLSerializer().serializeToString(svg);
+}
+
+function downloadBlob(name, content, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function exportDiagramSvg() {
+  let xml;
+  try { xml = diagramSvgText(); } catch (e) { toast('SVG export failed: ' + e.message, 'err'); return; }
+  downloadBlob('network-diagram.svg', xml, 'image/svg+xml');
+  toast('Exported diagram as SVG');
+}
+
+function exportDiagramPng() {
+  let xml;
+  try { xml = diagramSvgText(); } catch (e) { toast('PNG export failed: ' + e.message, 'err'); return; }
+  const img = new Image();
+  img.onload = () => {
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = DIAG_W * scale;
+    canvas.height = DIAG_H * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#131f36';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => downloadBlob('network-diagram.png', blob, 'image/png'), 'image/png');
+  };
+  img.onerror = () => toast('PNG export failed (image could not be rendered)', 'err');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+}
+
+function printDiagram() {
+  let xml;
+  try { xml = diagramSvgText(); } catch (e) { toast('Print failed: ' + e.message, 'err'); return; }
+  const w = window.open('', '_blank', 'width=1100,height=760');
+  if (!w) { toast('Pop-up blocked — allow pop-ups to print', 'warn'); return; }
+  const stamp = (orgSettings.org_name || 'NetVisor Suite') + ' — Network diagram · ' + new Date().toLocaleString();
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Network Diagram</title>' +
+    '<style>@media print{body{margin:0}} body{background:#fff;font-family:system-ui,sans-serif;text-align:center;padding:24px} svg{max-width:100%;height:auto} .stamp{color:#555;font-size:12px;margin:14px 0 0}</style>' +
+    '</head><body>' + xml + '<p class="stamp">' + stamp + '</p>' +
+    '<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 350); };</script></body></html>');
+  w.document.close();
+}
+
+$('#diagExportSvg').addEventListener('click', exportDiagramSvg);
+$('#diagExportPng').addEventListener('click', exportDiagramPng);
+$('#diagPrint').addEventListener('click', printDiagram);
+
+// ---- Empty-state quick actions ----
+$('#diagEmptyImport').addEventListener('click', () => $('#diagImport').click());
+$('#diagEmptyZone').addEventListener('click', () => { $('#diagAddZone').click(); });
+
+// ---- Diagram keyboard shortcuts ----
+$('#diagCanvas').addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && (diagSel || diagSelZone || diagSelLink != null)) $('#diagDelete').click();
+  else if (e.key === 'Escape') diagCancelMode();
+  else if (e.key === '+' || e.key === '=') setZoom(diagZoom * 1.25);
+  else if (e.key === '-' || e.key === '_') setZoom(diagZoom / 1.25);
+  else if (e.key === '0') setZoom(1);
+});
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+  const mod = e.ctrlKey || e.metaKey;
+  if (currentTab !== 'diagram' || typing) return;
+  const key = e.key.toLowerCase();
+  if (mod && key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redoDiagram(); else undoDiagram();
+  } else if (mod && key === 'y') {
+    e.preventDefault();
+    redoDiagram();
+  } else if (mod && (key === 's')) {
+    e.preventDefault();
+    $('#diagSave').click();
+  } else if (key === 'escape') {
+    diagCancelMode();
+  }
+});
 
 // ---------- Node properties panel (Packet-Tracer style config) ----------
 
@@ -1871,8 +2392,8 @@ function populateDiagPropControls() {
     Object.keys(DEFAULT_LABEL).forEach((t) => typeSel.append(new Option(DEFAULT_LABEL[t], t)));
   }
   const devSel = $('#diagPropDevice');
-  if (devSel && !devSel.options.length) {
-    devSel.append(new Option('— none (draw-only) —', ''));
+  if (devSel) {
+    devSel.replaceChildren(new Option('— none (draw-only) —', ''));
     (window.__devicesCache || []).forEach((d) => devSel.append(new Option(d.name, d.id)));
   }
   const zoneSel = $('#diagPropZone');
@@ -1925,6 +2446,7 @@ function syncNodeFromProps() {
 
 /** Apply property changes and redraw the canvas (used on commit/blur). */
 function commitNodeProps() {
+  recordHistory();
   syncNodeFromProps();
   renderDiagram();
 }
@@ -2323,12 +2845,17 @@ function showConnectionStatus(status) {
  * Update device status in the UI
  */
 function updateDeviceStatus(deviceId, status) {
-  // Find device rows in tables and update status
-  document.querySelectorAll(`tr[data-device-id="${deviceId}"]`).forEach(row => {
+  document.querySelectorAll(`tr[data-device-id="${deviceId}"]`).forEach((row) => {
     const statusCell = row.querySelector('.device-status');
     if (statusCell) {
       statusCell.textContent = status.toUpperCase();
       statusCell.className = 'device-status status-' + status;
+    }
+    const pillEl = row.querySelector('.pill');
+    if (pillEl) {
+      const label = status === 'up' ? 'UP' : status === 'down' ? 'DOWN' : 'Never checked';
+      pillEl.textContent = label;
+      pillEl.className = 'pill ' + (status === 'up' ? 'up' : status === 'down' ? 'down' : 'pending');
     }
   });
 }
@@ -2439,25 +2966,30 @@ function addEventToFeed(event) {
 function updateEventFeedDisplay() {
   const feedContainer = $('#eventFeed');
   if (!feedContainer) return;
-  
-  feedContainer.replaceChildren(...eventFeedItems.slice(0, 20).map(event => {
+
+  if (eventFeedItems.length === 0) {
+    feedContainer.replaceChildren(el('div', 'dash-empty', 'No activity yet — toggle device monitoring to see live events.'));
+    return;
+  }
+
+  feedContainer.replaceChildren(...eventFeedItems.slice(0, 20).map((event) => {
     const item = el('div', `event-item event-${event.severity}`);
     const time = new Date(event.timestamp);
     const timeStr = time.toLocaleTimeString();
-    
+
     const icon = {
       critical: '🔴',
       warning: '⚠️',
       info: 'ℹ️',
-      success: '✅'
+      success: '✅',
     }[event.severity] || '•';
-    
-    item.innerHTML = `
-      <span class="event-time">${timeStr}</span>
-      <span class="event-icon">${icon}</span>
-      <span class="event-message">${event.message}</span>
-    `;
-    
+
+    item.append(
+      el('span', 'event-time', timeStr),
+      el('span', 'event-icon', icon),
+      el('span', 'event-message', event.message)
+    );
+
     return item;
   }));
 }

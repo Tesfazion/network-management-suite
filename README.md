@@ -2,6 +2,10 @@
 
 **Version 3.0.0** | Multi-Tenant Network Management Platform | Enterprise Infrastructure Visibility
 
+[![CI](https://github.com/Tesfazion/network-management-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/Tesfazion/network-management-suite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-green.svg)](https://nodejs.org)
+
 A modern, professional network management platform with enterprise-grade features, team collaboration, and real-time monitoring capabilities. Self-hosted, secure, and production-ready.
 
 ---
@@ -138,6 +142,34 @@ WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 **Complete configuration reference:** [COMPLETE-SETUP-GUIDE.md](COMPLETE-SETUP-GUIDE.md)
 
+### Chat Assistant (optional AI upgrade)
+
+The built-in chat assistant works fully offline with a rule-based local engine. To upgrade replies with an LLM, set an OpenAI-compatible API key; if the API is unreachable the app automatically falls back to the local assistant.
+
+```bash
+# OpenAI (https://api.openai.com)
+BOT_API_KEY=sk-...
+BOT_API_URL=https://api.openai.com/v1/chat/completions
+BOT_MODEL=gpt-4o-mini
+
+# Azure OpenAI (the key is a UUID; URL contains the deployment)
+BOT_API_KEY=<your-azure-openai-uuid-key>
+BOT_API_URL=https://YOUR-RESOURCE.openai.azure.com/openai/deployments/DEPLOYMENT/chat/completions?api-version=2024-02-15-preview
+BOT_MODEL=DEPLOYMENT-NAME
+```
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `BOT_API_KEY` | *(empty)* | API key; empty = local-only mode |
+| `BOT_API_URL` | *(empty)* | Full chat-completions endpoint (Azure: contains `azure` + deployment + `api-version`) |
+| `BOT_MODEL` | `gpt-4o-mini` | Model (Azure: your deployment name) |
+| `BOT_TEMPERATURE` | `0.4` | Creativity (0.0–1.0) |
+| `BOT_MAX_TOKENS` | `500` | Max tokens per reply |
+| `BOT_TIMEOUT_MS` | `20000` | Request timeout |
+| `BOT_MAX_HISTORY` | `12` | Chat turns sent as context |
+
+> **Security:** never commit keys to the repository. Put them in your local `.env` (gitignored) or in environment variables / a secret store for production.
+
 ---
 
 ## Deployment
@@ -154,6 +186,21 @@ npm run seed       # Load demo data
 npm install --omit=dev
 NODE_ENV=production npm start
 ```
+
+### Continuous Integration (GitHub Actions)
+
+A CI pipeline runs on every push/PR to `main` — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+- **lint** — ESLint over `server/` and the frontend scripts
+- **test** — the full `node --test` suite against a disposable PostgreSQL 16 service
+- **audit** — `npm audit` fails on high/critical dependency vulnerabilities
+- **secret-scan** — [gitleaks](https://github.com/gitleaks/gitleaks) blocks commits that leak API keys/secrets
+
+Badge: `https://github.com/Tesfazion/network-management-suite/actions/workflows/ci.yml/badge.svg`
+
+If you self-host with an LLM upgrade, configure `BOT_API_URL` / `BOT_API_KEY` as
+[GitHub Actions secrets](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions)
+(a repository or environment secret named `BOT_API_KEY`, `BOT_API_URL`, `BOT_MODEL`) and export them for the server process.
 
 ### Docker
 ```bash

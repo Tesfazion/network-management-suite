@@ -2,8 +2,10 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const { Pool } = require('pg');
 
+require('dotenv').config();
+
 const dbName = `nms_test_${process.pid}_${Date.now()}`;
-const testDbUrl = process.env.TEST_DATABASE_URL || 'postgresql://postgres:Bu0987654321%23@localhost:8869';
+const testDbUrl = (process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432').replace(/\/[^/]*$/, '');
 process.env.DATABASE_URL = `${testDbUrl}/${dbName}`;
 
 const db = require('../db');

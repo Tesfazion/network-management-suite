@@ -13,6 +13,7 @@ const search = require('./search');
 const setup = require('./setup');
 const exportRoutes = require('./export');
 const organizations = require('./organizations');
+const chat = require('./chat');
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use(diagram);
 router.use(search);
 router.use(setup);
 router.use(exportRoutes);
+router.use(chat);
 
 router.use(notFoundHandler);
 

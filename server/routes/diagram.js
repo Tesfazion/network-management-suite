@@ -39,6 +39,8 @@ router.put('/diagram', async (req, res) => {
     .map((z) => ({
       id: String(z.id ?? '').slice(0, 64),
       label: String(z.label || 'Site').slice(0, 80),
+      city: String(z.city || '').slice(0, 80),
+      building: String(z.building || '').slice(0, 80),
       x: clampInt(z.x, 0, 10000, 0),
       y: clampInt(z.y, 0, 10000, 0),
       w: clampInt(z.w, 60, 10000, 180),
@@ -60,8 +62,10 @@ router.put('/diagram', async (req, res) => {
       status: NODE_STATUSES.includes(n.status) ? n.status : 'unknown',
       ip: String(n.ip || '').slice(0, 45),
       mac: String(n.mac || '').slice(0, 20),
-    }));
+    }))
+    .filter((n) => n.id);
 
+  const nodeIds = new Set(nodes.map((n) => n.id));
   const links = (Array.isArray(body.links) ? body.links : [])
     .slice(0, LIMITS.links)
     .map((l) => ({
@@ -70,7 +74,7 @@ router.put('/diagram', async (req, res) => {
       type: LINK_TYPES.includes(l.type) ? l.type : 'copper',
       label: String(l.label || '').slice(0, 40),
     }))
-    .filter((l) => l.from && l.to && l.from !== l.to);
+    .filter((l) => l.from && l.to && l.from !== l.to && nodeIds.has(l.from) && nodeIds.has(l.to));
 
   await db.query(
     'INSERT INTO diagram (id, data, updated_at, org_id) VALUES ($1, $2, CURRENT_TIMESTAMP, $3) ON CONFLICT (org_id, id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at',
