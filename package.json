@@ -42,7 +42,7 @@
     "uuid": "^14.0.2",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "eslint": "^9.25.1",
